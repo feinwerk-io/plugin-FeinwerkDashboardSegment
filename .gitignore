@@ -1,0 +1,5 @@
+
+# SDD / superpowers scratch workspace (never commit)
+.superpowers/
+vendor/
+.phpunit.cache/
