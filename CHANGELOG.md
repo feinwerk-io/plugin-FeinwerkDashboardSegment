@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.0.2
+
+- Without a dashboard default segment, the control above the widgets now says "No default (segment chosen at the top)"
+  instead of "Inherit dashboard default".
+- The "New segment" link in the segment menu shows Matomo's plus icon. Before, browsers without an emoji
+  font showed an empty box there.
+
 ## 5.0.1
 
 - Fixed: when Feinwerk Dashboard Sharing is installed but not active, the hint for super users asks to activate it

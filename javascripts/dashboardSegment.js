@@ -558,10 +558,12 @@
     // Segment picker: our own themed menu with a search box and a "New segment" link. Rendered by
     // us rather than Matomo's expandable-select, which is built for in-form use and misbehaves in a
     // floating popover. The period picker keeps the plain openMenu (only a handful of presets).
-    function openSegmentMenu($anchor, current, onPick) {
+    // emptyKey: the label of "nothing chosen" ('' value); a widget inherits the dashboard default, the dashboard
+    // default itself has none and uses the segment chosen at the top
+    function openSegmentMenu($anchor, current, onPick, emptyKey) {
         FeinwerkDashboardSegment.loadSegments(function (segments) {
             var items = [
-                { label: _pk_translate('FeinwerkDashboardSegment_InheritDefault'), value: '' },
+                { label: _pk_translate(emptyKey || 'FeinwerkDashboardSegment_InheritDefault'), value: '' },
                 { label: _pk_translate('FeinwerkDashboardSegment_NoSegment'), value: NONE }
             ];
             (segments || []).forEach(function (s) { items.push({ label: s.name, value: s.definition }); });
@@ -593,8 +595,10 @@
             $menu.append($list);
 
             if (segmentEditorAvailable()) {
+                // Matomo's own icon font, not an emoji: without an emoji font a browser shows an empty box
                 var $new = window.$('<a href="javascript:;" class="dsLink dsNewSegment"></a>')
-                    .text('➕ ' + _pk_translate('FeinwerkDashboardSegment_NewSegment'));
+                    .append(window.$('<span class="icon-add" aria-hidden="true"></span>'))
+                    .append(document.createTextNode(' ' + _pk_translate('FeinwerkDashboardSegment_NewSegment')));
                 $new.on('click', function () { close(); openNewSegmentEditor(); });
                 $menu.append($new);
             }
@@ -801,7 +805,7 @@
 
     FeinwerkDashboardSegment.defaultLabel = function () {
         var a = this.settings.defaultAction;
-        if (!a) { return _pk_translate('FeinwerkDashboardSegment_InheritDefault'); }
+        if (!a) { return _pk_translate('FeinwerkDashboardSegment_NoDashboardDefault'); }
         if (a.action === 'remove') { return _pk_translate('FeinwerkDashboardSegment_NoSegment'); }
         return this.segmentName(a.segment);
     };
@@ -833,7 +837,7 @@
                     // ourselves when that did not already navigate (which reloads everything).
                     if (!self.syncGlobalSegmentForDashboard()) { self.reloadAllWidgets(); }
                 });
-            });
+            }, 'FeinwerkDashboardSegment_NoDashboardDefault');
         });
 
         self.loadSegments(function () { render(); });

@@ -5,6 +5,7 @@
         "SharingInactiveNotice": "Dashboard sharing now comes from the free plugin Feinwerk Dashboard Sharing, which is installed but not active. Activate it to keep sharing your dashboards.",
         "PickSegment": "Segment for this widget",
         "InheritDefault": "Inherit dashboard default",
+        "NoDashboardDefault": "No default (segment chosen at the top)",
         "NoSegment": "No segment (all data)",
         "DashboardDefaultSegment": "Dashboard default segment",
         "CustomSegment": "Custom segment",

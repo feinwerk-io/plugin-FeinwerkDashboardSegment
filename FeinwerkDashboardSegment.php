@@ -107,6 +107,7 @@ class FeinwerkDashboardSegment extends Plugin
     {
         $keys[] = 'FeinwerkDashboardSegment_PickSegment';
         $keys[] = 'FeinwerkDashboardSegment_InheritDefault';
+        $keys[] = 'FeinwerkDashboardSegment_NoDashboardDefault';
         $keys[] = 'FeinwerkDashboardSegment_NoSegment';
         $keys[] = 'FeinwerkDashboardSegment_DashboardDefaultSegment';
         $keys[] = 'FeinwerkDashboardSegment_CustomSegment';

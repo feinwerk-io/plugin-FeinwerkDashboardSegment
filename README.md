@@ -13,21 +13,34 @@ no AI referrer by definition). Feinwerk Dashboard Segment fixes that.
 
 ## Description
 
-Matomo dashboards apply **one segment to every widget at once**. If you want to compare audiences
-on one dashboard, or keep a few widgets on all data while the rest use a segment, you need several
-dashboards or a lot of switching.
+Matomo dashboards apply one segment and one time range to every widget. Feinwerk Dashboard Segment gives each
+widget its own, so a single dashboard can compare audiences and periods side by side.
 
-Feinwerk Dashboard Segment adds a segment picker to each dashboard widget:
+**What you can do**
 
-- **A segment per widget:** every widget shows its own saved segment, so the same report can sit
-  side by side for "all visits", "mobile visitors" and "buyers".
-- **A dashboard default:** set one segment for the whole dashboard; single widgets inherit it,
-  override it or opt out with "all data".
-- **Per website:** choices are stored per dashboard and website and applied every time the
-  dashboard loads.
+- **A segment per widget:** open the segment menu in the widget header and choose any saved segment of the website.
+  A search field helps with long lists, and "New segment" opens Matomo's segment editor.
+- **A time range per widget:** give a widget a period of its own: today, yesterday, the last 7 or 30 days, this week,
+  this month or this year, independent of the date chosen for the dashboard.
+- **The same report twice:** add a widget twice and give each copy its own segment, for example all visits next to
+  mobile visitors.
+- **One default for the whole dashboard:** a segment chosen above the widgets filters the entire dashboard. Single
+  widgets can keep a segment of their own or show all data.
+- **Always visible:** a small bar under the widget title shows the active segment and time range; "×" removes them.
+- **Remembered:** choices are stored per user, dashboard and website and come back every time the dashboard opens.
 
-Nothing changes until you pick a segment: without settings, dashboards behave exactly like in
-standard Matomo. Public dashboards for anonymous visitors keep working as before.
+**Which widgets support it**
+
+- **Report tables** get their own segment and time range, for example Channel Types, Pages, Entry pages, Countries,
+  Device type or Campaigns.
+- **Graphs and charts** (evolution, bar and pie charts), **sparklines and overview widgets** (Visits Overview, Goals
+  and Ecommerce overview), the **Real-time widgets** (Visits in Real-time, Visits Log) and the **Visitor Map** load
+  their data themselves in the browser. They have no segment or time range buttons and follow the segment of the
+  whole dashboard, so a dashboard default filters them too.
+
+**Nothing changes until you choose.** Without a choice, dashboards behave exactly like standard Matomo, and public
+dashboards for anonymous visitors keep working as before. Shared dashboards of Feinwerk Dashboard Sharing take the
+segments and time ranges along.
 
 Documentation and more Plugins for Matomo: [Feinwerk Plugins](https://plugins.feinwerk.io/en/plugins/FeinwerkDashboardSegment).
 

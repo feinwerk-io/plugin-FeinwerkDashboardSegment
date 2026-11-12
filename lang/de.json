@@ -5,6 +5,7 @@
         "SharingInactiveNotice": "Das Teilen von Dashboards übernimmt jetzt das kostenlose Plugin Feinwerk Dashboard Sharing. Es ist installiert, aber nicht aktiviert. Aktivieren Sie es, um Ihre Dashboards weiterhin zu teilen.",
         "PickSegment": "Segment für dieses Widget",
         "InheritDefault": "Dashboard-Standard übernehmen",
+        "NoDashboardDefault": "Kein Standard (oben gewähltes Segment)",
         "NoSegment": "Kein Segment (alle Daten)",
         "DashboardDefaultSegment": "Standardsegment des Dashboards",
         "CustomSegment": "Eigenes Segment",

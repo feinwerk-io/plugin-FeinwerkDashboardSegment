@@ -104,6 +104,8 @@ DS.settings = {
 };
 DS.actionFor('x'); DS.periodFor('x'); DS.currentWidgetValue('x'); DS.currentDefaultValue();
 DS.currentPeriodKey('x'); DS.hasAnySettings(); DS.segmentName('a==b'); DS.defaultLabel();
+// the dashboard default has nothing to inherit: without one it says "No default", not "Inherit dashboard default"
+if (DS.defaultLabel() !== 'FeinwerkDashboardSegment_NoDashboardDefault') { throw new Error('dashboard default without a segment: ' + DS.defaultLabel()); }
 
 // ---- dashboard default -> global segment helpers (raw/decoded values via MatomoUrl) ----
 postPiwikEvent('Dashboard.Dashboard.mounted'); // dashboard 1 has rendered
