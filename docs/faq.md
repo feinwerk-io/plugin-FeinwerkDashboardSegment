@@ -34,6 +34,10 @@ __Does it work with Feinwerk Dashboard Sharing?__
 
 Yes. When you share a dashboard, the copies of your colleagues take the segments and time ranges of your widgets along.
 
+__Where do I find more Feinwerk plugins?__
+
+Install Feinwerk Connector from the Matomo Marketplace. It lists all Plugins for Matomo by Feinwerk, free and paid, and installs and updates them with one click.
+
 __Where do I get help?__
 
 Documentation: https://plugins.feinwerk.io/en/docs/plugins/FeinwerkDashboardSegment. Support: support@feinwerk.io.

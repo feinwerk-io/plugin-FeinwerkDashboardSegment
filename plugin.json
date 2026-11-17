@@ -1,7 +1,7 @@
 {
     "name": "FeinwerkDashboardSegment",
-    "version": "5.0.2",
-    "description": "Give every dashboard widget its own segment, plus a dashboard-wide default segment that filters the whole dashboard.",
+    "version": "5.0.3",
+    "description": "Give every dashboard widget its own segment and time range, plus one default segment for the whole dashboard. Compare audiences side by side.",
     "keywords": [
         "dashboard",
         "segment",
@@ -10,7 +10,7 @@
         "segments"
     ],
     "license": "GPL v3+",
-    "homepage": "https://feinwerk.io",
+    "homepage": "https://plugins.feinwerk.io/en/plugins/FeinwerkDashboardSegment?mtm_campaign=matomo-marketplace&mtm_source=FeinwerkDashboardSegment",
     "authors": [
         {
             "name": "Peter Boehlke, Feinwerk.io",
@@ -23,6 +23,9 @@
         "php": ">=8.1.0"
     },
     "category": "customisation",
+    "preview": {
+        "demo_url": "https://demo.feinwerk.io/index.php?module=FeinwerkDemo&action=signIn&dashboard=Segmente%20je%20Widget"
+    },
     "support": {
         "email": "support@feinwerk.io",
         "docs": "https://plugins.feinwerk.io/en/docs/plugins/FeinwerkDashboardSegment"

@@ -14,6 +14,7 @@ use Piwik\Db;
 use Piwik\Notification;
 use Piwik\Piwik;
 use Piwik\Plugin;
+use Piwik\Plugins\UsersManager\Model as UsersModel;
 
 class FeinwerkDashboardSegment extends Plugin
 {
@@ -155,9 +156,26 @@ class FeinwerkDashboardSegment extends Plugin
         (new Dao\WidgetSettings())->uninstall();
     }
 
+    /**
+     * The deleted user's overrides. The event may carry the login in another case than the stored one, and the table may
+     * match another user's login as well: delete the rows stored exactly under this login, or under a login that resolves
+     * to no Matomo user (anymore) or to the deleted user; rows of a login that resolves to another existing user stay.
+     */
     public function deleteUser($userLogin)
     {
-        (new Dao\WidgetSettings())->deleteAllForUser($userLogin);
+        $userLogin = (string) $userLogin;
+        $dao = $this->getWidgetSettingsDao();
+        foreach ($dao->storedLoginsMatching($userLogin) as $stored) {
+            if ($stored === $userLogin) {
+                $dao->deleteAllForUser($stored);
+                continue;
+            }
+            // another spelling the table matches: its rows go only if it is no user (anymore) or the deleted user
+            $canonical = $this->canonicalLogin($stored);
+            if ($canonical === '' || $canonical === $userLogin) {
+                $dao->deleteAllForUser($stored);
+            }
+        }
     }
 
     /**
@@ -166,6 +184,8 @@ class FeinwerkDashboardSegment extends Plugin
      */
     public function onCopyWidgetOverrides($fromLogin, $fromIdDashboard, $toLogin, $toIdDashboard)
     {
+        $fromLogin = $this->resolveLogin($fromLogin);
+        $toLogin = $this->resolveLogin($toLogin);
         $dao = $this->getWidgetSettingsDao();
         $dao->deleteForDashboard($toLogin, $toIdDashboard);  // re-sync: replace the target's overrides
         $dao->copyForDashboard($fromLogin, $fromIdDashboard, $toLogin, $toIdDashboard);
@@ -174,14 +194,14 @@ class FeinwerkDashboardSegment extends Plugin
     /** Posted by FeinwerkDashboardSharing when a linked dashboard goes away. */
     public function onDeleteWidgetOverrides($login, $idDashboard)
     {
-        $this->getWidgetSettingsDao()->deleteForDashboard($login, $idDashboard);
+        $this->getWidgetSettingsDao()->deleteForDashboard($this->resolveLogin($login), $idDashboard);
     }
 
     /** Matomo's "Remove dashboard": the dashboard's overrides go with it. */
     public function onDashboardRemoved(&$returnedValue, $extraInfo)
     {
         $parameters = isset($extraInfo['parameters']) ? $extraInfo['parameters'] : array();
-        $login = !empty($parameters['login']) ? $parameters['login'] : $this->getCurrentLogin();
+        $login = !empty($parameters['login']) ? $this->resolveLogin($parameters['login']) : $this->getCurrentLogin();
         $this->deleteOverridesOf($login, isset($parameters['idDashboard']) ? $parameters['idDashboard'] : 0);
     }
 
@@ -192,14 +212,14 @@ class FeinwerkDashboardSegment extends Plugin
     public function onDashboardCreated(&$returnedValue, $extraInfo)
     {
         $parameters = isset($extraInfo['parameters']) ? $extraInfo['parameters'] : array();
-        $this->deleteOverridesOf(isset($parameters['login']) ? $parameters['login'] : '', $returnedValue);
+        $this->deleteOverridesOf(isset($parameters['login']) ? $this->resolveLogin($parameters['login']) : '', $returnedValue);
     }
 
     /** "Copy dashboard to user" creates a dashboard for that user: as onDashboardCreated(). */
     public function onDashboardCopied(&$returnedValue, $extraInfo)
     {
         $parameters = isset($extraInfo['parameters']) ? $extraInfo['parameters'] : array();
-        $this->deleteOverridesOf(isset($parameters['copyToUser']) ? $parameters['copyToUser'] : '', $returnedValue);
+        $this->deleteOverridesOf(isset($parameters['copyToUser']) ? $this->resolveLogin($parameters['copyToUser']) : '', $returnedValue);
     }
 
     private function deleteOverridesOf($login, $idDashboard)
@@ -221,6 +241,42 @@ class FeinwerkDashboardSegment extends Plugin
     protected function getCurrentLogin()
     {
         return Piwik::getCurrentUserLogin();
+    }
+
+    /**
+     * A login from a request or another plugin, as Matomo stores it: the caller may write it in another case, and this
+     * plugin compares logins exactly. Unknown logins stay as given.
+     */
+    private function resolveLogin($login)
+    {
+        $login = (string) $login;
+        if ($login === '') {
+            return '';
+        }
+        $stored = $this->canonicalLogin($login);
+
+        return $stored !== '' ? $stored : $login;
+    }
+
+    /**
+     * The stored login of the Matomo user $login resolves to, '' when there is none. When the lookup itself fails, the
+     * login counts as existing (returned as given), so a cleanup never removes rows on a doubtful answer.
+     */
+    protected function canonicalLogin($login)
+    {
+        try {
+            $user = $this->findUser((string) $login);
+
+            return is_array($user) && isset($user['login']) ? (string) $user['login'] : '';
+        } catch (\Throwable $e) {
+            return (string) $login;
+        }
+    }
+
+    /** Test seam: Matomo's user row for $login (false or [] when there is none). */
+    protected function findUser($login)
+    {
+        return (new UsersModel())->getUser($login);
     }
 
     /**

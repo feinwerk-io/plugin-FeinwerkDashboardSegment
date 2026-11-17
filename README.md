@@ -29,20 +29,21 @@ widget its own, so a single dashboard can compare audiences and periods side by 
 - **Always visible:** a small bar under the widget title shows the active segment and time range; "×" removes them.
 - **Remembered:** choices are stored per user, dashboard and website and come back every time the dashboard opens.
 
-**Which widgets support it**
+**Which widgets support it:** report tables (for example Channel Types, Pages or Countries) get their own segment and
+time range. Graphs, sparklines, overview and real-time widgets and the Visitor Map follow the dashboard default
+segment instead.
 
-- **Report tables** get their own segment and time range, for example Channel Types, Pages, Entry pages, Countries,
-  Device type or Campaigns.
-- **Graphs and charts** (evolution, bar and pie charts), **sparklines and overview widgets** (Visits Overview, Goals
-  and Ecommerce overview), the **Real-time widgets** (Visits in Real-time, Visits Log) and the **Visitor Map** load
-  their data themselves in the browser. They have no segment or time range buttons and follow the segment of the
-  whole dashboard, so a dashboard default filters them too.
+**Get started:** open a dashboard and use the segment button in a widget header.
 
 **Nothing changes until you choose.** Without a choice, dashboards behave exactly like standard Matomo, and public
 dashboards for anonymous visitors keep working as before. Shared dashboards of Feinwerk Dashboard Sharing take the
 segments and time ranges along.
 
-Documentation and more Plugins for Matomo: [Feinwerk Plugins](https://plugins.feinwerk.io/en/plugins/FeinwerkDashboardSegment).
+Works with Feinwerk Dashboard Sharing (free): share a dashboard, and your colleagues get its segments too.
+
+**More Plugins for Matomo by Feinwerk:** install [Feinwerk Connector](https://plugins.matomo.org/FeinwerkMarketplaceConnector)
+from the Matomo Marketplace to discover, install and update all Feinwerk plugins, free and paid, right in your Matomo.
+Documentation: [plugins.feinwerk.io](https://plugins.feinwerk.io/en/plugins/FeinwerkDashboardSegment).
 
 ## Features
 

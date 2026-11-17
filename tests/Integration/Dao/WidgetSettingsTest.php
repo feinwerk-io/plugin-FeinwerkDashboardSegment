@@ -114,4 +114,122 @@ class WidgetSettingsTest extends IntegrationTestCase
         $this->assertSame([], $this->dao->getAllForDashboard('bob', 9, 1));
         $this->assertSame('site2', $this->dao->getAllForDashboard('alice', 5, 2)['widgetA']['segment']);
     }
+
+    /**
+     * "Anna" and "anna" are two Matomo users. A case-insensitive collation of the table (Matomo 5.0 created it with the
+     * server's default) matches both logins. The test table gets such a collation, whatever the test server's default
+     * is; the skip remains only for a database that cannot convert it.
+     */
+    private function conflateAnnaOrSkip()
+    {
+        $table = Common::prefixTable('dashboard_widget_settings');
+        try {
+            Db::query("ALTER TABLE `$table` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
+        } catch (\Exception $e) {
+            $this->markTestSkipped('the test table cannot be given a case-insensitive collation: ' . $e->getMessage());
+        }
+        $this->dao->setSegment('Anna', 41, 1, 'widgetA', 'referrerType==search');
+        if ((int) Db::fetchOne("SELECT COUNT(*) FROM `$table` WHERE `login` = 'anna'") === 0) {
+            $this->markTestSkipped('the test database compares logins case-sensitively: no conflation to guard against');
+        }
+    }
+
+    public function test_conflatedLogins_doNotReadEachOthersOverrides()
+    {
+        $this->conflateAnnaOrSkip();
+
+        $this->assertSame([], $this->dao->getAllForDashboard('anna', 41, 1));
+        $this->assertSame('referrerType==search', $this->dao->getAllForDashboard('Anna', 41, 1)['widgetA']['segment']);
+    }
+
+    public function test_conflatedLogins_anUpsertNeverOverwritesTheOtherUsersRow()
+    {
+        $this->conflateAnnaOrSkip();
+
+        foreach (['segment' => function () {
+            $this->dao->setSegment('anna', 41, 1, 'widgetA', 'browserCode==ff');
+        }, 'period' => function () {
+            $this->dao->setPeriod('anna', 41, 1, 'widgetA', 'range', 'last7');
+        }] as $what => $write) {
+            try {
+                $write();
+                $this->fail('the ' . $what . ' upsert must refuse a key that another login holds');
+            } catch (\PHPUnit\Framework\AssertionFailedError $e) {
+                throw $e;
+            } catch (\Exception $e) {
+                $this->assertStringContainsString('another user', $e->getMessage());
+            }
+        }
+
+        $row = $this->dao->getAllForDashboard('Anna', 41, 1)['widgetA'];
+        $this->assertSame('referrerType==search', $row['segment']);
+        $this->assertNull($row['period']);
+    }
+
+    public function test_conflatedLogins_clearAndDeleteTouchOnlyTheExactLogin()
+    {
+        $this->conflateAnnaOrSkip();
+
+        $this->dao->clearSegment('anna', 41, 1, 'widgetA');
+        $this->dao->clearPeriod('anna', 41, 1, 'widgetA');
+        $this->dao->deleteForDashboard('anna', 41);
+        $this->dao->deleteAllForUser('anna');
+
+        $this->assertSame('referrerType==search', $this->dao->getAllForDashboard('Anna', 41, 1)['widgetA']['segment']);
+
+        $this->dao->deleteAllForUser('Anna');
+        $this->assertSame([], $this->dao->getAllForDashboard('Anna', 41, 1));
+    }
+
+    public function test_conflatedLogins_aCopyReadsOnlyTheExactSourceLogin()
+    {
+        $this->conflateAnnaOrSkip();
+
+        $this->dao->copyForDashboard('anna', 41, 'bob', 42);
+        $this->assertSame([], $this->dao->getAllForDashboard('bob', 42, 1));
+
+        $this->dao->copyForDashboard('Anna', 41, 'bob', 42);
+        $this->assertSame('referrerType==search', $this->dao->getAllForDashboard('bob', 42, 1)['widgetA']['segment']);
+    }
+
+    public function test_conflatedLogins_aCopyNeverWritesIntoAKeyAnotherLoginHolds()
+    {
+        $this->conflateAnnaOrSkip();
+        $this->dao->setSegment('bob', 5, 1, 'widget0', 'browserCode==ff'); // sorts before the held key
+        $this->dao->setSegment('bob', 5, 1, 'widgetA', 'deviceType==smartphone');
+
+        try {
+            $this->dao->copyForDashboard('bob', 5, 'anna', 41);
+            $this->fail('the copy must refuse a target key that another login holds');
+        } catch (\PHPUnit\Framework\AssertionFailedError $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            $this->assertStringContainsString('another user', $e->getMessage());
+            $this->assertStringNotContainsString('Anna', $e->getMessage());
+        }
+
+        $this->assertSame([], $this->dao->getAllForDashboard('anna', 41, 1), 'nothing is copied, not even the free key');
+        $this->assertSame('referrerType==search', $this->dao->getAllForDashboard('Anna', 41, 1)['widgetA']['segment']);
+
+        $this->dao->copyForDashboard('bob', 5, 'anna', 42);
+        $this->assertCount(2, $this->dao->getAllForDashboard('anna', 42, 1));
+    }
+
+    public function test_conflatedLogins_storedLoginsMatchingGivesEverySpelling()
+    {
+        $this->conflateAnnaOrSkip();
+        $this->dao->setSegment('anna', 42, 1, 'widgetA', 'browserCode==ff');
+
+        $logins = $this->dao->storedLoginsMatching('ANNA');
+        sort($logins);
+        $this->assertSame(['Anna', 'anna'], $logins);
+    }
+
+    public function test_storedLoginsMatching_givesTheStoredSpelling()
+    {
+        $this->dao->setSegment('Anna', 43, 1, 'widgetA', 'referrerType==search');
+
+        $this->assertSame(['Anna'], $this->dao->storedLoginsMatching('Anna'));
+        $this->assertSame([], $this->dao->storedLoginsMatching('nobody'));
+    }
 }

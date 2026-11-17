@@ -1,5 +1,11 @@
 # Changelog
 
+## 5.0.3
+
+- Fixed: on some databases two Matomo users whose logins differ only in case (or, depending on the database, in
+  letters such as "ß" and "ss") could see, change or remove each other's widget segments and time ranges on a
+  dashboard with the same number. Logins are now compared exactly.
+
 ## 5.0.2
 
 - Without a dashboard default segment, the control above the widgets now says "No default (segment chosen at the top)"
