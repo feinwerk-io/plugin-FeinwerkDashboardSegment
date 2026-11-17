@@ -1,6 +1,6 @@
 {
     "name": "FeinwerkDashboardSegment",
-    "version": "5.1.0",
+    "version": "5.1.1",
     "description": "Give every dashboard widget its own segment and time range, plus one default segment for the whole dashboard. Compare audiences side by side.",
     "keywords": [
         "dashboard",
@@ -24,7 +24,7 @@
     },
     "category": "customisation",
     "preview": {
-        "demo_url": "https://demo.feinwerk.io/index.php?module=FeinwerkDemo&action=signIn&dashboard=Segments%20per%20widget"
+        "demo_url": "https://demo.feinwerk.io/demo/dashboard-segment"
     },
     "support": {
         "email": "support@feinwerk.io",

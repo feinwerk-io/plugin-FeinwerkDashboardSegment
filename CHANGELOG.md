@@ -1,5 +1,9 @@
 # Changelog
 
+## 5.1.1
+
+- The demo link on the Matomo Marketplace page opens the demo again.
+
 ## 5.1.0
 
 - Each Matomo user now keeps their own widget segments and time ranges on every database: an update makes the plugin
