@@ -1,5 +1,15 @@
 # Changelog
 
+## 5.1.0
+
+- Each Matomo user now keeps their own widget segments and time ranges on every database: an update makes the plugin
+  compare stored logins exactly. Before, of two users whose logins differ only in case (such as "Anna" and "anna") only
+  the first could save a setting for the same widget. Settings stored under a login typed in another case (for example
+  a dashboard copied to "BOB" for the user "bob") move to that user.
+- The plugin's API refuses invalid input (an empty widget, a date or time range Matomo cannot show, a website number of
+  0) with an error (HTTP 400) instead of storing it, and a setting that belongs to another user with HTTP 409.
+- The README has a new section on privacy, and the Matomo Marketplace page has new screenshots and a demo link.
+
 ## 5.0.3
 
 - Fixed: on some databases two Matomo users whose logins differ only in case (or, depending on the database, in

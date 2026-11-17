@@ -12,15 +12,17 @@ namespace Piwik\Plugins\FeinwerkDashboardSegment\Dao;
 use Piwik\Common;
 use Piwik\Db;
 use Piwik\DbHelper;
+use Piwik\Plugins\FeinwerkDashboardSegment\Exception\StoredForAnotherUserException;
 
 /**
  * One row per (login, dashboard, site, widget instance). A row may carry a segment override
  * and/or a period/date override independently; the row is removed once neither remains.
  *
- * Logins are compared exactly. The table compares `login` with its collation (Matomo 5.0 created plugin tables with the
- * server's default one), which can treat two different Matomo users as one ("Anna" and "anna", depending on the
- * collation also "ß" and "ss"). So every query keyed by login adds a binary comparison, and an upsert refuses a key that
- * another login holds instead of overwriting that user's row.
+ * Logins are compared exactly. Matomo 5.0 created plugin tables with the server's default collation, which can treat two
+ * different Matomo users as one ("Anna" and "anna", depending on the collation also "ß" and "ss"). The column `login`
+ * therefore gets the binary collation of its character set (install, and an update for existing tables), so each login
+ * has its own keys. Until that update has run, every query keyed by login adds a binary comparison, and an upsert refuses
+ * a key that another login holds instead of overwriting that user's row.
  */
 class WidgetSettings
 {
@@ -46,6 +48,33 @@ class WidgetSettings
             `period` VARCHAR(50) NULL DEFAULT NULL,
             `date` VARCHAR(50) NULL DEFAULT NULL,
             PRIMARY KEY (`login`, `iddashboard`, `idsite`, `widget_uniqueid`)");
+        // the table's character set is the server's or Matomo's choice: give `login` its binary collation afterwards
+        $type = $this->exactLoginColumnType();
+        if ($type !== null) {
+            Db::exec(sprintf('ALTER TABLE `%s` MODIFY COLUMN `login` %s', $this->tablePrefixed, $type));
+        }
+    }
+
+    /**
+     * The column type that makes `login` compare exactly (the binary collation of the column's own character set), or
+     * null when the column already compares exactly or the table does not exist. The update for existing tables and
+     * install() both use it.
+     */
+    public function exactLoginColumnType()
+    {
+        $column = Db::fetchRow(
+            'SELECT `CHARACTER_SET_NAME` AS cs, `COLLATION_NAME` AS coll FROM `information_schema`.`COLUMNS`
+              WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = ? AND `COLUMN_NAME` = ?',
+            array($this->tablePrefixed, 'login')
+        );
+        if (empty($column) || empty($column['cs']) || substr((string) $column['coll'], -4) === '_bin') {
+            return null;
+        }
+        if (!preg_match('/^[a-z0-9]+$/', (string) $column['cs'])) {
+            return null;
+        }
+
+        return sprintf('VARCHAR(100) CHARACTER SET %1$s COLLATE %1$s_bin NOT NULL', $column['cs']);
     }
 
     public function uninstall()
@@ -65,7 +94,7 @@ class WidgetSettings
         );
         foreach ($rows as $row) {
             if ((string) $row['login'] !== (string) $login) {
-                throw new \Exception('This widget setting is stored for another user.');
+                throw new StoredForAnotherUserException();
             }
         }
     }
@@ -88,8 +117,47 @@ class WidgetSettings
             array($toLogin, $toLogin, (int) $toIdDashboard, $fromLogin, $fromLogin, (int) $fromIdDashboard)
         );
         if ((int) $held > 0) {
-            throw new \Exception('This widget setting is stored for another user.');
+            throw new StoredForAnotherUserException();
         }
+    }
+
+    /**
+     * Stored logins that are a Matomo user's login in another case ("BOB" for the user "bob", for example written when an
+     * administrator copied a dashboard to a login typed that way): stored login => the user's login. A stored login that
+     * is exactly a user's login, or matches no user or several, is left alone. Two queries; runs only in the update that
+     * gives `login` its binary collation, which would otherwise hide those rows from their owner.
+     *
+     * @return array<string,string>
+     */
+    public function loginsToRewrite()
+    {
+        $users = array_map(static function ($row) {
+            return (string) $row['login'];
+        }, Db::fetchAll(sprintf('SELECT `login` FROM `%s`', Common::prefixTable('user'))));
+        $exact = array_flip($users);
+        $byLower = array();
+        foreach ($users as $user) {
+            $byLower[mb_strtolower($user, 'UTF-8')][] = $user;
+        }
+
+        $rewrites = array();
+        foreach (Db::fetchAll(sprintf('SELECT `login` FROM `%s`', $this->tablePrefixed)) as $row) {
+            $stored = (string) $row['login'];
+            if (isset($exact[$stored]) || isset($rewrites[$stored])) {
+                continue;
+            }
+            $candidates = $byLower[mb_strtolower($stored, 'UTF-8')] ?? array();
+            if (count($candidates) === 1) {
+                $rewrites[$stored] = $candidates[0];
+            }
+        }
+        return $rewrites;
+    }
+
+    /** the statement that moves the rows of one stored login to another (bound: new login, stored login) */
+    public function rewriteLoginSql()
+    {
+        return sprintf('UPDATE `%s` SET `login` = ? WHERE ' . self::EXACT_LOGIN, $this->tablePrefixed);
     }
 
     /** Upsert only the segment column (leaves any period/date override untouched). */
@@ -176,8 +244,10 @@ class WidgetSettings
     }
 
     /**
-     * The logins stored in this table that the table's collation matches for $login (it may be several, "Anna" and
-     * "anna"): the user-deletion cleanup decides per stored login.
+     * The logins stored in this table that may be $login in another spelling: those the column's collation matches
+     * (before the binary collation, "Anna" and "anna", depending on the collation also "ß" and "ss") and those equal to it
+     * ignoring case (after it). The user-deletion cleanup decides per stored login. A small scan that runs only when a
+     * Matomo user is deleted.
      *
      * @return string[]
      */
@@ -185,8 +255,8 @@ class WidgetSettings
     {
         // no DISTINCT: it would merge "Anna" and "anna" under the collation; the exact spellings are deduplicated here
         $rows = Db::fetchAll(
-            sprintf('SELECT `login` FROM `%s` WHERE `login` = ?', $this->tablePrefixed),
-            array($login)
+            sprintf('SELECT `login` FROM `%s` WHERE `login` = ? OR LOWER(`login`) = LOWER(?)', $this->tablePrefixed),
+            array($login, $login)
         );
 
         return array_values(array_unique(array_map(static function ($row) {

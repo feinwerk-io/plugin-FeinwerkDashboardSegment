@@ -11,6 +11,7 @@ namespace Piwik\Plugins\FeinwerkDashboardSegment;
 
 use Piwik\Piwik;
 use Piwik\Plugins\FeinwerkDashboardSegment\Dao\WidgetSettings;
+use Piwik\Plugins\FeinwerkDashboardSegment\Exception\InvalidRequestException;
 
 /**
  * FeinwerkDashboardSegment API: per-widget segment and period/date overrides plus a per-dashboard default
@@ -20,6 +21,9 @@ use Piwik\Plugins\FeinwerkDashboardSegment\Dao\WidgetSettings;
  */
 class API extends \Piwik\Plugin\API
 {
+    /** the periods a widget can be given; the date must suit the period (see assertPeriodAndDate) */
+    private const PERIODS = array('day', 'week', 'month', 'year', 'range');
+
     /** @var WidgetSettings */
     private $dao;
 
@@ -36,7 +40,7 @@ class API extends \Piwik\Plugin\API
     {
         $login = $this->checkAndGetLogin($idSite);
         // Matomo 6 no longer trims request parameters; a value of only spaces clears like ''.
-        $widgetUniqueId = trim($widgetUniqueId);
+        $widgetUniqueId = $this->requireWidgetId($widgetUniqueId);
         $segment = trim($segment);
 
         if ($segment === '') {
@@ -53,7 +57,7 @@ class API extends \Piwik\Plugin\API
     public function setWidgetPeriod(int $idDashboard, int $idSite, string $widgetUniqueId, string $period, string $date): void
     {
         $login = $this->checkAndGetLogin($idSite);
-        $widgetUniqueId = trim($widgetUniqueId);
+        $widgetUniqueId = $this->requireWidgetId($widgetUniqueId);
         $period = trim($period);
         $date = trim($date);
 
@@ -61,6 +65,7 @@ class API extends \Piwik\Plugin\API
             $this->dao->clearPeriod($login, $idDashboard, $idSite, $widgetUniqueId);
             return;
         }
+        $this->assertPeriodAndDate($period, $date);
         $this->dao->setPeriod($login, $idDashboard, $idSite, $widgetUniqueId, $period, $date);
     }
 
@@ -97,6 +102,45 @@ class API extends \Piwik\Plugin\API
         return array('default' => $default, 'widgets' => $all);
     }
 
+    /** The trimmed widget instance id; an empty one answers HTTP 400. */
+    private function requireWidgetId(string $widgetUniqueId): string
+    {
+        $widgetUniqueId = trim($widgetUniqueId);
+        if ($widgetUniqueId === '') {
+            throw new InvalidRequestException('widgetUniqueId must not be empty');
+        }
+        return $widgetUniqueId;
+    }
+
+    /**
+     * A period override must be one Matomo can show: day, week, month or year with a single date (today, yesterday or
+     * YYYY-MM-DD), or range with lastN, previousN or "YYYY-MM-DD,YYYY-MM-DD". Anything else answers HTTP 400 instead of
+     * being stored and breaking the widget later.
+     */
+    private function assertPeriodAndDate(string $period, string $date): void
+    {
+        if (!in_array($period, self::PERIODS, true)) {
+            throw new InvalidRequestException('Invalid period: use day, week, month, year or range');
+        }
+        $single = '\\d{4}-\\d{2}-\\d{2}';
+        $pattern = $period === 'range'
+            ? '/^(?:(?:last|previous)[1-9]\\d{0,3}|' . $single . ',' . $single . ')$/'
+            : '/^(?:today|yesterday|' . $single . ')$/';
+        if (!preg_match($pattern, $date)) {
+            throw new InvalidRequestException('Invalid date for period ' . $period);
+        }
+        // calendar dates must exist, and a custom range must not end before it starts
+        preg_match_all('/(\\d{4})-(\\d{2})-(\\d{2})/', $date, $days, PREG_SET_ORDER);
+        foreach ($days as $day) {
+            if (!checkdate((int) $day[2], (int) $day[3], (int) $day[1])) {
+                throw new InvalidRequestException('Invalid date for period ' . $period);
+            }
+        }
+        if (count($days) === 2 && strcmp($days[0][0], $days[1][0]) > 0) {
+            throw new InvalidRequestException('The range ends before it starts');
+        }
+    }
+
     /** Test seam: unit tests replace the access check, which needs Matomo's container. */
     protected function checkAndGetLogin(int $idSite): string
     {
@@ -105,7 +149,7 @@ class API extends \Piwik\Plugin\API
         // for superusers, who would then read/write overrides under the bucket idsite=0 that no real
         // dashboard load ever matches.
         if ($idSite <= 0) {
-            throw new \Exception('Invalid idSite');
+            throw new InvalidRequestException('Invalid idSite');
         }
         Piwik::checkUserHasViewAccess($idSite);
         return Piwik::getCurrentUserLogin();

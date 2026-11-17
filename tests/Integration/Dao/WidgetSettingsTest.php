@@ -225,6 +225,74 @@ class WidgetSettingsTest extends IntegrationTestCase
         $this->assertSame(['Anna', 'anna'], $logins);
     }
 
+    public function test_install_givesLoginTheBinaryCollation()
+    {
+        $this->assertNull($this->dao->exactLoginColumnType(), 'install() leaves nothing for the update to do');
+
+        $this->dao->setSegment('Anna', 41, 1, 'widgetA', 'referrerType==search');
+        $this->dao->setSegment('anna', 41, 1, 'widgetA', 'browserCode==ff');
+        $this->assertSame('referrerType==search', $this->dao->getAllForDashboard('Anna', 41, 1)['widgetA']['segment']);
+        $this->assertSame('browserCode==ff', $this->dao->getAllForDashboard('anna', 41, 1)['widgetA']['segment']);
+    }
+
+    public function test_theUpdate_givesAnExistingTableTheBinaryCollation_once()
+    {
+        $this->conflateAnnaOrSkip(); // the table as Matomo 5.0 created it on a case-insensitive server, "Anna" on 41
+
+        $update = $this->loginCollationUpdate();
+        $updater = $this->createMock(\Piwik\Updater::class);
+        $migrations = $update->getMigrations($updater);
+        $this->assertCount(1, $migrations);
+        foreach ($migrations as $migration) {
+            $migration->exec();
+        }
+
+        // "anna" now gets her own key on the same dashboard, and Anna's row stays as it was
+        $this->dao->setSegment('anna', 41, 1, 'widgetA', 'browserCode==ff');
+        $this->assertSame('referrerType==search', $this->dao->getAllForDashboard('Anna', 41, 1)['widgetA']['segment']);
+        $this->assertSame('browserCode==ff', $this->dao->getAllForDashboard('anna', 41, 1)['widgetA']['segment']);
+        $this->assertSame([], $update->getMigrations($updater), 'a second run has nothing to do');
+
+        // the user-deletion cleanup still finds every spelling of a login
+        $logins = $this->dao->storedLoginsMatching('ANNA');
+        sort($logins);
+        $this->assertSame(['Anna', 'anna'], $logins);
+    }
+
+    public function test_theUpdate_movesRowsStoredUnderAUsersLoginInAnotherCase()
+    {
+        $this->conflateAnnaOrSkip(); // "Anna" is no Matomo user here: her row stays as it is
+        (new \Piwik\Plugins\UsersManager\Model())->addUser('bob', 'not-a-real-hash', 'bob@example.com', \Piwik\Date::now()->getDatetime());
+        $this->dao->setSegment('BOB', 7, 1, 'widgetB', 'browserCode==ff'); // e.g. a dashboard copied to a login typed "BOB"
+        $this->assertSame(['BOB' => 'bob'], $this->dao->loginsToRewrite());
+
+        $update = $this->loginCollationUpdate();
+        $updater = $this->createMock(\Piwik\Updater::class);
+        $migrations = $update->getMigrations($updater);
+        $this->assertCount(2, $migrations, 'one rewrite, then the collation');
+        foreach ($migrations as $migration) {
+            $migration->exec();
+        }
+
+        $this->assertSame('browserCode==ff', $this->dao->getAllForDashboard('bob', 7, 1)['widgetB']['segment']);
+        $this->assertSame([], $this->dao->getAllForDashboard('BOB', 7, 1));
+        $this->assertSame('referrerType==search', $this->dao->getAllForDashboard('Anna', 41, 1)['widgetA']['segment']);
+        $this->assertSame([], $update->getMigrations($updater));
+    }
+
+    /** this branch's update with the login collation (its file name is the branch's own version) */
+    private function loginCollationUpdate()
+    {
+        $files = array_values(array_filter(glob(__DIR__ . '/../../../Updates/*.php'), function ($file) {
+            return strpos((string) file_get_contents($file), 'exactLoginColumnType') !== false;
+        }));
+        $this->assertCount(1, $files);
+        require_once $files[0];
+        $class = 'Piwik\\Plugins\\FeinwerkDashboardSegment\\Updates_' . strtolower(str_replace(['-', '.'], '_', basename($files[0], '.php')));
+
+        return new $class(\Piwik\Container\StaticContainer::get(\Piwik\Updater\Migration\Factory::class));
+    }
+
     public function test_storedLoginsMatching_givesTheStoredSpelling()
     {
         $this->dao->setSegment('Anna', 43, 1, 'widgetA', 'referrerType==search');

@@ -94,6 +94,8 @@ class APITest extends IntegrationTestCase
         // so overrides are never stored under the bucket idsite=0.
         FakeAccess::$superUser = true;
 
+        $this->expectException(\Piwik\Plugins\FeinwerkDashboardSegment\Exception\InvalidRequestException::class);
+        $this->expectExceptionCode(400);
         $this->expectExceptionMessageMatches('/Invalid idSite/');
         $this->api->setWidgetSegment(5, 0, 'widgetA', 'referrerType==search');
     }

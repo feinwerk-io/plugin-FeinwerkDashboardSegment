@@ -124,12 +124,16 @@ Do not uninstall `DashboardSegment` yourself.
   *exception* on those reactive widgets: they follow the dashboard default, so their per‑widget
   pickers stay hidden. Per‑widget overrides still apply to the standard server‑rendered report
   widgets (the majority).
-- Matomo fires no event when a dashboard is deleted, so override rows for a deleted dashboard are
-  not actively cleaned up. They are inert (their instance keys never match a live widget) and are
-  removed when the user or the site is deleted. (Because dashboard ids are reused per user, a
-  dashboard deleted and immediately recreated under the same id could briefly carry over the old
-  dashboard default; this is cosmetic and self‑corrects.)
 - Planned: bulk segment assignment.
+
+## Privacy
+
+- The plugin stores only what you choose in its controls: per Matomo user, dashboard and website the segment and time
+  range of a widget and the default segment of the dashboard. It stores no visitor data of its own.
+- Nothing leaves your Matomo: the plugin loads nothing from other servers, sends no data anywhere and shows no
+  advertising or feedback questions.
+- Removing a dashboard, a website or a Matomo user removes the settings that belong to it. Uninstalling the plugin
+  removes its table.
 
 ## License
 
