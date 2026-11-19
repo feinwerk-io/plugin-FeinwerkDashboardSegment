@@ -828,7 +828,7 @@
         var $name = window.$('<span class="dashboardSegmentDefaultName"></span>');
         $value.append(window.$('<span class="dashboardSegmentDefaultText"></span>')
             .append(window.$('<span class="dashboardSegmentDefaultLabel"></span>')
-                .text(_pk_translate('FeinwerkDashboardSegment_DashboardSegmentButton') + ': '))
+                .text(_pk_translate('FeinwerkDashboardSegment_DashboardSegmentButton') + ' '))  // the colon is in the translation (French puts a space before it)
             .append($name));
         $ctrl.append($value);
         var $slot = window.$('#fwds-topcontrol-slot');

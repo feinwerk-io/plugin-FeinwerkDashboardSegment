@@ -1,5 +1,13 @@
 # Changelog
 
+## 5.3.0
+
+- New: while the free Feinwerk Connector is not active, super users find "Feinwerk Plugins", "Install Feinwerk
+  Connector" in Matomo's Administration. One click installs it from the Matomo Marketplace and activates it, after
+  Matomo's password check; where Matomo cannot install from its Marketplace, the page explains the manual way.
+  `connector_installer = 0` in `[FeinwerkDashboardSegment]` hides the entry.
+- The plugin now speaks French, Spanish and Italian as well.
+
 ## 5.2.0
 
 - The dashboard default segment is now a button in the bar at the top, next to the date and Matomo's segment

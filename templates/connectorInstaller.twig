@@ -1,0 +1,56 @@
+{# Feinwerk kit: the Feinwerk Connector installer page (ConnectorInstaller/ConnectorInstaller.php, Controller::
+   connectorInstaller and connectorInstallerRun). Super users only. installerState: install (one button: Matomo's own
+   Marketplace installer, then activate), activate (one button), manual, php, wordpress (instructions, no button).
+   installerError: Matomo's reason after a failed click (raw only where Matomo marks it as HTML). Matomo's own card and
+   button classes, so light and dark follow Matomo. #}
+{% extends 'admin.twig' %}
+
+{% set title %}{{ 'FeinwerkDashboardSegment_ConnectorInstallerTitle'|translate }}{% endset %}
+
+{% block content %}
+<div class="card fwci">
+    <div class="card-content">
+        <h2 class="card-title">{{ title }}</h2>
+        <p>{{ 'FeinwerkDashboardSegment_ConnectorInstallerIntro'|translate }}</p>
+
+        {% if installerError %}
+            <div class="alert alert-danger fwci__error">
+                {% if installerError.html %}{{ installerError.message|raw }}{% else %}{{ installerError.message }}{% endif %}
+            </div>
+        {% endif %}
+
+        {% if installerState == 'install' or installerState == 'activate' %}
+            {% if installerState == 'install' %}
+                <p>{{ 'FeinwerkDashboardSegment_ConnectorInstallerInstallText'|translate }}</p>
+            {% else %}
+                <p>{{ 'FeinwerkDashboardSegment_ConnectorInstallerActivateText'|translate }}</p>
+            {% endif %}
+            <p>
+                <a class="btn fwci__run" href="{{ linkTo({'module': 'FeinwerkDashboardSegment', 'action': 'connectorInstallerRun', 'nonce': installerNonce}) }}">
+                    {{ (installerState == 'install' ? 'FeinwerkDashboardSegment_ConnectorInstallerButton' : 'FeinwerkDashboardSegment_ConnectorInstallerButtonActivate')|translate }}
+                </a>
+            </p>
+            <p class="fwci__note">{{ 'FeinwerkDashboardSegment_ConnectorInstallerPasswordNote'|translate }}</p>
+        {% elseif installerState == 'wordpress' %}
+            <p>{{ 'FeinwerkDashboardSegment_ConnectorInstallerWordPress'|translate }}</p>
+            {% if installerWordPressUrl %}
+                <p><a class="btn" href="{{ installerWordPressUrl }}">{{ 'FeinwerkDashboardSegment_ConnectorInstallerWordPressLink'|translate }}</a></p>
+            {% endif %}
+        {% elseif installerState == 'php' %}
+            <p>{{ 'FeinwerkDashboardSegment_ConnectorInstallerPhp'|translate(installerPhpFloor) }}</p>
+        {% elseif installerState == 'manual' %}
+            <p>{{ 'FeinwerkDashboardSegment_ConnectorInstallerManual'|translate }}</p>
+            {# Matomo resets list styles: the numbers back, no colours #}
+            <ol class="fwci__steps" style="list-style: decimal; margin: 0 0 12px; padding-left: 1.5em;">
+                <li style="list-style: decimal; margin-bottom: 4px;">{{ 'FeinwerkDashboardSegment_ConnectorInstallerManualStep1'|translate }}
+                    <a href="{{ installerLinks.marketplace }}" target="_blank" rel="noopener">plugins.matomo.org</a>,
+                    <a href="{{ installerLinks.download }}" target="_blank" rel="noopener">plugins.feinwerk.io</a></li>
+                <li style="list-style: decimal; margin-bottom: 4px;">{{ 'FeinwerkDashboardSegment_ConnectorInstallerManualStep2'|translate }}</li>
+                <li style="list-style: decimal; margin-bottom: 4px;">{{ 'FeinwerkDashboardSegment_ConnectorInstallerManualStep3'|translate }}</li>
+            </ol>
+        {% else %}
+            <p><a class="btn" href="{{ installerConnectorUrl }}">{{ 'FeinwerkDashboardSegment_ConnectorInstallerOpen'|translate }}</a></p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

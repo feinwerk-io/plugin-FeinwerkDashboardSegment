@@ -86,6 +86,8 @@ appears in the per‑widget picker.
 - PHP 8.1 or newer
 - The bundled **Dashboard** and **SegmentEditor** plugins (active by default).
 
+Available in English, German, French, Spanish and Italian.
+
 Matomo 6: version 6.x. Matomo 5: version 5.x.
 
 ## Installation
@@ -125,6 +127,22 @@ Do not uninstall `DashboardSegment` yourself.
   pickers stay hidden. Per‑widget overrides still apply to the standard server‑rendered report
   widgets (the majority).
 - Planned: bulk segment assignment.
+
+## Installing the Feinwerk Connector
+
+The free Feinwerk Connector installs, updates and licenses Feinwerk plugins inside Matomo. The easiest way to get it is
+the Matomo Marketplace. While it is not active, super users also find a section "Feinwerk Plugins" in Matomo's
+Administration with the entry "Install Feinwerk Connector" ("Activate Feinwerk Connector" when its files are already
+there). One click installs it from the Matomo Marketplace and activates it; as with every plugin install, Matomo first
+asks for your password. Where Matomo cannot install from its Marketplace (Marketplace, internet features or plugin
+administration switched off), the page explains the manual way instead. In Matomo for WordPress the connector is
+installed as a WordPress plugin through Matomo Analytics, Marketplace. The connector needs PHP 8.1. Nothing is
+downloaded before you click. To hide the entry, add to `config/config.ini.php`:
+
+    [FeinwerkDashboardSegment]
+    connector_installer = 0
+
+The same line in the section `[FeinwerkMarketplaceConnector]` hides it for all Feinwerk plugins.
 
 ## Privacy
 
