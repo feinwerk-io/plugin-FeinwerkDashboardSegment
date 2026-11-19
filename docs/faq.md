@@ -16,7 +16,7 @@ Report widgets that show a table, for example Channel Types, Pages, Entry pages,
 
 __How do I filter graphs and the Real-time widget then?__
 
-With the dashboard default segment above the widgets. It filters the whole dashboard, including graphs, sparklines, the Real-time widgets and the Visitor Map. When you leave the dashboard, the segment you had before comes back.
+With the "Dashboard segment" button in the bar at the top, next to the date. It filters the whole dashboard, including graphs, sparklines, the Real-time widgets and the Visitor Map. When you leave the dashboard, the segment you had before comes back.
 
 __Can the same widget appear twice with different segments?__
 

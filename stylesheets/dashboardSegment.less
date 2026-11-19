@@ -167,14 +167,46 @@
     &.active { font-weight: bold; }
 }
 
-.dashboardSegmentDefault {
-    margin: 6px 0 10px;
-    font-size: 13px;
+// The slot in Matomo's top bar takes no room of its own: the button inside it lines up with the other top controls.
+.fwds-topControlSlot {
+    display: contents;
+}
 
+// The dashboard default segment button: Matomo's own top-control classes (piwikSelector, borderedControl,
+// piwikTopControl, a.title) give it the look of the controls next to it; this only arranges its parts.
+#dashboardSegmentDefault {
     .dashboardSegmentDefaultValue {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        text-decoration: none;
+    }
+
+    .dashboardSegmentDefaultIcon {
+        float: none;
+    }
+
+    .dashboardSegmentDefaultText {
+        min-width: 0;
+        white-space: nowrap;
+    }
+
+    .dashboardSegmentDefaultName {
+        display: inline-block;
+        max-width: 16em;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        vertical-align: bottom;
+    }
+
+    &.dashboardSegmentDefault--set .dashboardSegmentDefaultName {
         font-weight: bold;
-        text-decoration: underline dotted;
-        cursor: pointer;
+    }
+
+    // where Matomo's top bar is missing, the button sits above the widgets
+    &.dashboardSegmentDefault--inline {
+        margin: 6px 0 10px;
     }
 }
 

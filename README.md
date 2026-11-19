@@ -24,8 +24,8 @@ widget its own, so a single dashboard can compare audiences and periods side by 
   this month or this year, independent of the date chosen for the dashboard.
 - **The same report twice:** add a widget twice and give each copy its own segment, for example all visits next to
   mobile visitors.
-- **One default for the whole dashboard:** a segment chosen above the widgets filters the entire dashboard. Single
-  widgets can keep a segment of their own or show all data.
+- **One default for the whole dashboard:** a segment chosen with the "Dashboard segment" button in the bar at the top,
+  next to the date, filters the entire dashboard. Single widgets can keep a segment of their own or show all data.
 - **Always visible:** a small bar under the widget title shows the active segment and time range; "×" removes them.
 - **Remembered:** choices are stored per user, dashboard and website and come back every time the dashboard opens.
 
@@ -109,7 +109,7 @@ Do not uninstall `DashboardSegment` yourself.
 1. Open a dashboard.
 2. Use the **segment button** in a widget's header to pick a segment, "No segment (all data)", or
    "Inherit dashboard default".
-3. Use the **Dashboard default segment** control above the widgets to set a default for the whole
+3. Use the **Dashboard segment** button in the bar at the top, next to the date, to set a default for the whole
    dashboard.
 4. Switch sites to manage each site's selection independently.
 

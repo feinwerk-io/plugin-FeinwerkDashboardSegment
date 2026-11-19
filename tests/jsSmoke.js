@@ -14,13 +14,13 @@ function jq() {
     var methods = ['find', 'first', 'each', 'on', 'one', 'attr', 'append', 'prepend', 'after',
         'before', 'next', 'remove', 'text', 'addClass', 'hide', 'show', 'empty', 'css', 'offset',
         'outerHeight', 'height', 'dashboardWidget', 'dashboard', 'data', 'trigger', 'map', 'filter',
-        'val', 'prop', 'is'];
+        'val', 'prop', 'is', 'toggleClass'];
     methods.forEach(function (m) { o[m] = function () { return o; }; });
     o.length = 0;
     o.each = function () { return o; };
     o.offset = function () { return { top: 0, left: 0 }; };
     o.outerHeight = function () { return 0; };
-    o.attr = function () { return ''; };
+    o.attr = function (name, value) { return arguments.length > 1 ? o : ''; }; // setter chains like jQuery
     o.val = function () { return ''; };
     o.is = function () { return false; };
     o.hasClass = function () { return false; };
@@ -104,8 +104,8 @@ DS.settings = {
 };
 DS.actionFor('x'); DS.periodFor('x'); DS.currentWidgetValue('x'); DS.currentDefaultValue();
 DS.currentPeriodKey('x'); DS.hasAnySettings(); DS.segmentName('a==b'); DS.defaultLabel();
-// the dashboard default has nothing to inherit: without one it says "No default", not "Inherit dashboard default"
-if (DS.defaultLabel() !== 'FeinwerkDashboardSegment_NoDashboardDefault') { throw new Error('dashboard default without a segment: ' + DS.defaultLabel()); }
+// the dashboard default has nothing to inherit: without one the button says "No default", not "Inherit dashboard default"
+if (DS.defaultLabel() !== 'FeinwerkDashboardSegment_NoDashboardDefaultShort') { throw new Error('dashboard default without a segment: ' + DS.defaultLabel()); }
 
 // ---- dashboard default -> global segment helpers (raw/decoded values via MatomoUrl) ----
 postPiwikEvent('Dashboard.Dashboard.mounted'); // dashboard 1 has rendered
@@ -196,12 +196,12 @@ window.$ = origQ;
 delete window.FeinwerkDashboardSharing;
 console.log('SMOKE OK: fwsh:readonlychange handler');
 
-// ---- the dashboard default control goes into the slot above the widgets (Matomo >= 5.14.1 and 6) ----
+// ---- the dashboard default control goes into the slot in Matomo's top bar, else above the widgets ----
 function injectDefaultWith(slotPresent) {
     var placed = [];
     window.$ = function (arg) {
         var o = origQ(arg);
-        if (arg === '#dashboardWidgetsArea' || (arg === '#fwds-default-slot' && slotPresent)) {
+        if (arg === '#dashboardWidgetsArea' || (arg === '#fwds-topcontrol-slot' && slotPresent)) {
             Object.defineProperty(o, 'length', { value: 1 });
             o.before = function () { placed.push('before ' + arg); return o; };
             o.append = function () { placed.push('append ' + arg); return o; };
@@ -213,9 +213,13 @@ function injectDefaultWith(slotPresent) {
     window.$ = origQ;
     return JSON.stringify(placed);
 }
-if (injectDefaultWith(true) !== '["append #fwds-default-slot"]') { throw new Error('default control must go into the slot: ' + injectDefaultWith(true)); }
+if (injectDefaultWith(true) !== '["append #fwds-topcontrol-slot"]') { throw new Error('default control must go into the top bar slot: ' + injectDefaultWith(true)); }
 if (injectDefaultWith(false) !== '["before #dashboardWidgetsArea"]') { throw new Error('without a slot the control goes above the widgets: ' + injectDefaultWith(false)); }
-console.log('SMOKE OK: default control in the dashboard slot, fallback above the widgets');
+// a read-only (subscribed) copy gets no button, whichever comes first: its read-only state or a late injection
+window.FeinwerkDashboardSharing = { readOnly: true };
+if (injectDefaultWith(true) !== '[]') { throw new Error('no default button on a read-only dashboard: ' + injectDefaultWith(true)); }
+delete window.FeinwerkDashboardSharing;
+console.log('SMOKE OK: default control in the top bar slot, fallback above the widgets');
 
 // ---- a failed save resolves false and never leaves an unhandled rejection ----
 // (ajaxHelper.send() rejects on a failed request, e.g. an HTTP 400.) The plugin shows its own notification, so core's

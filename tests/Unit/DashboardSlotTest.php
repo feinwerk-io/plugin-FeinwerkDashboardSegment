@@ -13,8 +13,8 @@ use PHPUnit\Framework\TestCase;
 use Piwik\Plugins\FeinwerkDashboardSegment\FeinwerkDashboardSegment;
 
 /**
- * Matomo (from 5.14.1 on, and 6) renders content above the dashboard widgets through Template.beforeDashboardWidgets;
- * the plugin puts a slot there that the script fills with the dashboard default segment control.
+ * Matomo renders its bar at the top (website, date, segment, Manage Dashboard) with Template.nextToCalendar; the plugin
+ * puts a slot there, after Matomo's own segment selector, that the script fills with the dashboard default segment button.
  *
  * @group FeinwerkDashboardSegment
  */
@@ -33,15 +33,16 @@ class DashboardSlotTest extends TestCase
     {
         $events = $this->plugin->registerEvents();
 
-        $this->assertSame('renderDefaultSegmentSlot', $events['Template.beforeDashboardWidgets'] ?? null);
+        $this->assertSame(array('function' => 'renderTopControlSlot', 'after' => true), $events['Template.nextToCalendar'] ?? null);
+        $this->assertArrayNotHasKey('Template.beforeDashboardWidgets', $events, 'no line above the widgets any more');
     }
 
     public function test_appendsTheSlotToOtherPluginsOutput()
     {
         $out = '<div class="other"></div>';
 
-        $this->plugin->renderDefaultSegmentSlot($out);
+        $this->plugin->renderTopControlSlot($out);
 
-        $this->assertSame('<div class="other"></div><div id="fwds-default-slot"></div>', $out);
+        $this->assertSame('<div class="other"></div><div id="fwds-topcontrol-slot" class="fwds-topControlSlot"></div>', $out);
     }
 }

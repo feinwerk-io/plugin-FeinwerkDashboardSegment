@@ -29,7 +29,8 @@ class FeinwerkDashboardSegment extends Plugin
             'SitesManager.deleteSite.end'            => 'deleteSite',
             'Controller.CoreHome.index'              => 'notifySharingMoved',
             'PluginManager.pluginActivated'          => 'onPluginActivated',
-            'Template.beforeDashboardWidgets'        => 'renderDefaultSegmentSlot',
+            // after Matomo's own segment selector, which uses the same event
+            'Template.nextToCalendar'                => array('function' => 'renderTopControlSlot', 'after' => true),
             'FeinwerkDashboardSharing.copyWidgetOverrides'   => 'onCopyWidgetOverrides',
             'FeinwerkDashboardSharing.deleteWidgetOverrides' => 'onDeleteWidgetOverrides',
             'API.Dashboard.removeDashboard.end'           => 'onDashboardRemoved',
@@ -85,13 +86,14 @@ class FeinwerkDashboardSegment extends Plugin
     }
 
     /**
-     * The dashboard's own place for content above the widgets (event posted from Matomo 5.14.1 on, and in
-     * Matomo 6). The script puts the dashboard default segment control into this slot; on older Matomo
-     * versions, which do not post the event, the script inserts the control above the widgets itself.
+     * A place in Matomo's bar at the top (website, date, segment, Manage Dashboard), right after the segment selector.
+     * While an editable dashboard is shown, the script puts the dashboard default segment button into it; elsewhere it
+     * stays empty (display: contents, so it takes no room). Where the bar is missing, the script puts the button above
+     * the widgets instead.
      */
-    public function renderDefaultSegmentSlot(&$out)
+    public function renderTopControlSlot(&$out)
     {
-        $out .= '<div id="fwds-default-slot"></div>';
+        $out .= '<div id="fwds-topcontrol-slot" class="fwds-topControlSlot"></div>';
     }
 
     public function getJsFiles(&$jsFiles)
@@ -111,6 +113,9 @@ class FeinwerkDashboardSegment extends Plugin
         $keys[] = 'FeinwerkDashboardSegment_NoDashboardDefault';
         $keys[] = 'FeinwerkDashboardSegment_NoSegment';
         $keys[] = 'FeinwerkDashboardSegment_DashboardDefaultSegment';
+        $keys[] = 'FeinwerkDashboardSegment_DashboardSegmentButton';
+        $keys[] = 'FeinwerkDashboardSegment_NoDashboardDefaultShort';
+        $keys[] = 'FeinwerkDashboardSegment_DashboardSegmentTooltip';
         $keys[] = 'FeinwerkDashboardSegment_CustomSegment';
         $keys[] = 'FeinwerkDashboardSegment_RemoveSegment';
         $keys[] = 'FeinwerkDashboardSegment_PickPeriod';

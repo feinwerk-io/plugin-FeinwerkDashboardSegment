@@ -23,6 +23,9 @@
         "SaveError": "Could not save your change. Please try again.",
         "SavedReloadHint": "Your change was saved. Please reload the page to see it.",
         "NewSegment": "New segment",
-        "SearchSegments": "Search segments"
+        "SearchSegments": "Search segments",
+        "DashboardSegmentButton": "Dashboard segment",
+        "NoDashboardDefaultShort": "No default",
+        "DashboardSegmentTooltip": "The segment this dashboard opens with. Single widgets can have a segment of their own."
     }
 }

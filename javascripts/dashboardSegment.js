@@ -805,29 +805,43 @@
 
     FeinwerkDashboardSegment.defaultLabel = function () {
         var a = this.settings.defaultAction;
-        if (!a) { return _pk_translate('FeinwerkDashboardSegment_NoDashboardDefault'); }
+        if (!a) { return _pk_translate('FeinwerkDashboardSegment_NoDashboardDefaultShort'); }
         if (a.action === 'remove') { return _pk_translate('FeinwerkDashboardSegment_NoSegment'); }
         return this.segmentName(a.segment);
     };
 
+    // The dashboard default segment as a button in Matomo's bar at the top (website, date, segment, Manage Dashboard),
+    // in Matomo's own top-control markup: "[icon] Dashboard segment: <name>". The slot comes from
+    // Template.nextToCalendar; where the bar is missing the button goes above the widgets.
     FeinwerkDashboardSegment.injectDefaultControl = function () {
         var self = this;
         var $area = window.$('#dashboardWidgetsArea');
         if (!$area.length || window.$('#dashboardSegmentDefault').length) { return; }
+        // a subscribed (read-only) copy gets no button, also when its read-only state arrived before this call
+        if (isReadOnlyDashboard()) { return; }
 
-        var $ctrl = window.$('<div id="dashboardSegmentDefault" class="dashboardSegmentDefault"></div>');
-        $ctrl.append(window.$('<span class="dashboardSegmentDefaultLabel"></span>')
-            .text(_pk_translate('FeinwerkDashboardSegment_DashboardDefaultSegment') + ': '));
-        var $value = window.$('<a href="javascript:;" class="dashboardSegmentDefaultValue"></a>');
+        var $ctrl = window.$('<div id="dashboardSegmentDefault" class="dashboardSegmentDefault piwikSelector borderedControl piwikTopControl"></div>');
+        var $value = window.$('<a href="javascript:;" role="button" class="title dashboardSegmentDefaultValue"></a>')
+            .attr('title', _pk_translate('FeinwerkDashboardSegment_DashboardSegmentTooltip'));
+        $value.append(window.$('<span class="icon icon-segment icon-fixed dashboardSegmentDefaultIcon" aria-hidden="true"></span>'));
+        // label and name in one text part, so they sit a normal space apart (the bar spaces only the icon)
+        var $name = window.$('<span class="dashboardSegmentDefaultName"></span>');
+        $value.append(window.$('<span class="dashboardSegmentDefaultText"></span>')
+            .append(window.$('<span class="dashboardSegmentDefaultLabel"></span>')
+                .text(_pk_translate('FeinwerkDashboardSegment_DashboardSegmentButton') + ': '))
+            .append($name));
         $ctrl.append($value);
-        // Slot rendered above the widgets via Template.beforeDashboardWidgets (Matomo >= 5.14.1 and 6);
-        // older versions do not post that event.
-        var $slot = window.$('#fwds-default-slot');
-        if ($slot.length) { $slot.append($ctrl); } else { $area.before($ctrl); }
+        var $slot = window.$('#fwds-topcontrol-slot');
+        if ($slot.length) { $slot.append($ctrl); } else { $area.before($ctrl.addClass('dashboardSegmentDefault--inline')); }
 
-        function render() { $value.text(self.defaultLabel()); }
+        function render() {
+            var label = self.defaultLabel();
+            $name.text(label);
+            $ctrl.toggleClass('dashboardSegmentDefault--set', !!self.settings.defaultAction);
+        }
 
         $value.on('click', function (e) {
+            e.preventDefault();
             e.stopPropagation();
             openSegmentMenu($value, self.currentDefaultValue(), function (value) {
                 self.saveDefault(value).then(function (saved) {

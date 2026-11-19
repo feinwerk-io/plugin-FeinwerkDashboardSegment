@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.2.0
+
+- The dashboard default segment is now a button in the bar at the top, next to the date and Matomo's segment
+  selection ("Dashboard segment: ..."), instead of a line above the widgets.
+
 ## 5.1.1
 
 - The demo link on the Matomo Marketplace page opens the demo again.
