@@ -41,6 +41,8 @@
         "ConnectorInstallerManualStep1": "Download the Feinwerk Connector:",
         "ConnectorInstallerManualStep2": "Unzip it and put the folder FeinwerkMarketplaceConnector into the plugins directory of your Matomo.",
         "ConnectorInstallerManualStep3": "Activate the connector under Administration, Plugins.",
+        "ConnectorInstallerManualStep3Console": "Plugin administration is switched off in this Matomo, so activate the connector on the command line:",
+        "ConnectorInstallerConsole": "The connector is already installed, but plugin administration is switched off in this Matomo. Activate it on the command line:",
         "ConnectorInstallerPhp": "The Feinwerk Connector needs PHP %s or newer. Once your server runs it, you can install the connector here.",
         "ConnectorInstallerWordPress": "In Matomo for WordPress the Feinwerk Connector is installed as a WordPress plugin: open Matomo Analytics, Marketplace in WordPress and search for Feinwerk.",
         "ConnectorInstallerWordPressLink": "Open the Marketplace in WordPress",

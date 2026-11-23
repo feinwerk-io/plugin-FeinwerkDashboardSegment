@@ -1,6 +1,7 @@
 {# Feinwerk kit: the Feinwerk Connector installer page (ConnectorInstaller/ConnectorInstaller.php, Controller::
    connectorInstaller and connectorInstallerRun). Super users only. installerState: install (one button: Matomo's own
-   Marketplace installer, then activate), activate (one button), manual, php, wordpress (instructions, no button).
+   Marketplace installer, then activate), activate (one button), console (files there, plugin administration off: the
+   command), manual, php, wordpress (instructions, no button).
    installerError: Matomo's reason after a failed click (raw only where Matomo marks it as HTML). Matomo's own card and
    button classes, so light and dark follow Matomo. #}
 {% extends 'admin.twig' %}
@@ -31,6 +32,9 @@
                 </a>
             </p>
             <p class="fwci__note">{{ 'FeinwerkDashboardSegment_ConnectorInstallerPasswordNote'|translate }}</p>
+        {% elseif installerState == 'console' %}
+            <p>{{ 'FeinwerkDashboardSegment_ConnectorInstallerConsole'|translate }}</p>
+            <pre class="fwci__command"><code>{{ installerConsoleCommand }}</code></pre>
         {% elseif installerState == 'wordpress' %}
             <p>{{ 'FeinwerkDashboardSegment_ConnectorInstallerWordPress'|translate }}</p>
             {% if installerWordPressUrl %}
@@ -46,7 +50,12 @@
                     <a href="{{ installerLinks.marketplace }}" target="_blank" rel="noopener">plugins.matomo.org</a>,
                     <a href="{{ installerLinks.download }}" target="_blank" rel="noopener">plugins.feinwerk.io</a></li>
                 <li style="list-style: decimal; margin-bottom: 4px;">{{ 'FeinwerkDashboardSegment_ConnectorInstallerManualStep2'|translate }}</li>
+                {% if installerPluginsAdmin %}
                 <li style="list-style: decimal; margin-bottom: 4px;">{{ 'FeinwerkDashboardSegment_ConnectorInstallerManualStep3'|translate }}</li>
+                {% else %}
+                <li style="list-style: decimal; margin-bottom: 4px;">{{ 'FeinwerkDashboardSegment_ConnectorInstallerManualStep3Console'|translate }}
+                    <code>{{ installerConsoleCommand }}</code></li>
+                {% endif %}
             </ol>
         {% else %}
             <p><a class="btn" href="{{ installerConnectorUrl }}">{{ 'FeinwerkDashboardSegment_ConnectorInstallerOpen'|translate }}</a></p>

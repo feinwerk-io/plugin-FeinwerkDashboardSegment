@@ -50,7 +50,20 @@ class ConnectorInstallerTest extends TestCase
 
         self::assertSame(ConnectorInstaller::ACTIVATE, ConnectorInstaller::decide($present));
         self::assertSame(ConnectorInstaller::ACTIVATE, ConnectorInstaller::decide(['marketplace' => false, 'internet' => false] + $present), 'no download needed');
-        self::assertSame(ConnectorInstaller::MANUAL, ConnectorInstaller::decide(['pluginsAdmin' => false] + $present), 'plugin administration off');
+        self::assertSame(ConnectorInstaller::CONSOLE, ConnectorInstaller::decide(['pluginsAdmin' => false] + $present), 'plugin administration off');
+    }
+
+    /**
+     * Regression (Campaign Score's review, 2026-11-19): the click action showed the page's "open the connector" fallback
+     * while the installer was switched off; both actions now take this decision.
+     */
+    public function test_where_both_actions_send_the_super_user_instead_of_showing_the_page(): void
+    {
+        self::assertSame('index.php?module=CoreAdminHome&action=home', ConnectorInstaller::redirectFor(['enabled' => false] + self::READY), 'switched off');
+        self::assertSame('index.php?module=FeinwerkMarketplaceConnector&action=index', ConnectorInstaller::redirectFor(['active' => true, 'present' => true] + self::READY));
+        foreach ([self::READY, ['present' => true] + self::READY, ['marketplace' => false] + self::READY, ['present' => true, 'pluginsAdmin' => false] + self::READY] as $env) {
+            self::assertNull(ConnectorInstaller::redirectFor($env), ConnectorInstaller::decide($env));
+        }
     }
 
     public function test_php_and_wordpress_come_first(): void

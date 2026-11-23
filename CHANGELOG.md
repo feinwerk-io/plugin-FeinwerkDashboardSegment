@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.3.1
+
+- The Feinwerk Connector page also opens from administration pages without a selected website. Where plugin
+  administration is switched off, it shows the command that activates the connector.
+
 ## 5.3.0
 
 - New: while the free Feinwerk Connector is not active, super users find "Feinwerk Plugins", "Install Feinwerk

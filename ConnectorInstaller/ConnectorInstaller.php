@@ -37,12 +37,17 @@ final class ConnectorInstaller
     public const PHP_FLOOR = '8.1.0';
     /** where the super user lands after the click: the connector's Discover tab (Connect, "Show Feinwerk plugins") */
     public const CONNECTOR_URL = 'index.php?module=FeinwerkMarketplaceConnector&action=index';
+    /** where the page sends a super user when it has nothing to offer (switched off) */
+    public const ADMIN_HOME_URL = 'index.php?module=CoreAdminHome&action=home';
+    /** activation where plugin administration is switched off (an identifier admins type, not a translation) */
+    public const CONSOLE_COMMAND = './console plugin:activate FeinwerkMarketplaceConnector';
     /** one entry across all Feinwerk plugins: the first that builds the menu claims it */
     public const CLAIM = 'fwconnector.installer.claimed';
 
     public const HIDDEN = 'hidden';
     public const INSTALL = 'install';
     public const ACTIVATE = 'activate';
+    public const CONSOLE = 'console';
     public const MANUAL = 'manual';
     public const PHP = 'php';
     public const WORDPRESS = 'wordpress';
@@ -54,6 +59,7 @@ final class ConnectorInstaller
      * - wordpress: Matomo for WordPress (the connector installs there as a WordPress plugin, never inside Matomo);
      * - php: PHP below the connector's floor;
      * - activate: its files are there (also a link or a git checkout), plugin administration allowed;
+     * - console: its files are there, plugin administration switched off (activate on the command line);
      * - install: Matomo would offer its own one-click install (plugin administration, Marketplace, internet features,
      *   automatic updates possible: the same rule as the Install button of Matomo's Marketplace);
      * - manual: everything else, with instructions instead of a button.
@@ -73,12 +79,27 @@ final class ConnectorInstaller
             return self::PHP;
         }
         if ($env['present']) {
-            return $env['pluginsAdmin'] ? self::ACTIVATE : self::MANUAL;
+            return $env['pluginsAdmin'] ? self::ACTIVATE : self::CONSOLE;
         }
 
         return $env['pluginsAdmin'] && $env['marketplace'] && $env['internet'] && $env['autoUpdate']
             ? self::INSTALL
             : self::MANUAL;
+    }
+
+    /**
+     * Where both actions send the super user instead of showing the page: the connector's own pages once it is active,
+     * Matomo's admin home when the installer is switched off; null when the page has something to offer. Pure.
+     *
+     * @param array<string, bool> $env
+     */
+    public static function redirectFor(array $env): ?string
+    {
+        if (self::decide($env) !== self::HIDDEN) {
+            return null;
+        }
+
+        return $env['active'] ? self::CONNECTOR_URL : self::ADMIN_HOME_URL;
     }
 
     /**

@@ -44,6 +44,8 @@ class ConnectorInstallerTemplateTest extends TestCase
             'installerWordPressUrl' => '',
             'installerConnectorUrl' => 'index.php?module=FeinwerkMarketplaceConnector&action=index',
             'installerPhpFloor' => '8.1.0',
+            'installerPluginsAdmin' => true,
+            'installerConsoleCommand' => './console plugin:activate FeinwerkMarketplaceConnector',
         ]);
     }
 
@@ -60,12 +62,29 @@ class ConnectorInstallerTemplateTest extends TestCase
 
     public function test_no_button_where_one_click_cannot_work(): void
     {
-        foreach (['manual', 'php', 'wordpress'] as $state) {
+        foreach (['manual', 'php', 'wordpress', 'console'] as $state) {
             self::assertStringNotContainsString('fwci__run', $this->render(['installerState' => $state]), $state);
         }
         $manual = $this->render(['installerState' => 'manual']);
         self::assertStringContainsString('href="https://plugins.feinwerk.io/x" target="_blank" rel="noopener"', $manual);
         self::assertStringContainsString('FeinwerkDashboardSegment_ConnectorInstallerPhp(8.1.0)', $this->render(['installerState' => 'php']));
+    }
+
+    /** Plugin administration off (Campaign Score's review): the command line instead of a menu that is not there. */
+    public function test_without_plugin_administration_the_page_names_the_console_command(): void
+    {
+        $console = $this->render(['installerState' => 'console', 'installerPluginsAdmin' => false]);
+        self::assertStringContainsString('FeinwerkDashboardSegment_ConnectorInstallerConsole', $console);
+        self::assertStringContainsString('<code>./console plugin:activate FeinwerkMarketplaceConnector</code>', $console);
+        self::assertStringNotContainsString('ManualStep1', $console, 'no download, the files are there');
+
+        $manual = $this->render(['installerState' => 'manual', 'installerPluginsAdmin' => false]);
+        self::assertStringContainsString('FeinwerkDashboardSegment_ConnectorInstallerManualStep3Console', $manual);
+        self::assertStringContainsString('./console plugin:activate FeinwerkMarketplaceConnector', $manual);
+
+        $withMenu = $this->render(['installerState' => 'manual']);
+        self::assertStringContainsString('FeinwerkDashboardSegment_ConnectorInstallerManualStep3<', str_replace([' ', "\n"], '', $withMenu));
+        self::assertStringNotContainsString('./console', $withMenu);
     }
 
     public function test_an_error_is_escaped_unless_matomo_marks_it_as_html(): void

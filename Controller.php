@@ -153,9 +153,11 @@ class Controller extends \Piwik\Plugin\Controller
     {
         Piwik::checkUserHasSuperUserAccess();
         $env = ConnectorInstaller::environment();
-        if (ConnectorInstaller::decide($env) === ConnectorInstaller::HIDDEN) {
-            // nothing to offer: the connector's own pages when it is active, else Matomo's admin home (switched off)
-            Url::redirectToUrl($env['active'] ? ConnectorInstaller::CONNECTOR_URL : 'index.php?module=CoreAdminHome&action=home');
+        $redirect = ConnectorInstaller::redirectFor($env);
+        if ($redirect !== null) {
+            Url::redirectToUrl($redirect);
+
+            return '';
         }
 
         return $this->renderConnectorInstaller($env, null);
@@ -170,13 +172,14 @@ class Controller extends \Piwik\Plugin\Controller
     {
         Piwik::checkUserHasSuperUserAccess();
         $env = ConnectorInstaller::environment();
-        if ($env['active']) {
-            Url::redirectToUrl(ConnectorInstaller::CONNECTOR_URL);
+        $redirect = ConnectorInstaller::redirectFor($env);
+        if ($redirect !== null) {
+            // active: the connector; switched off: admin home (never the page's "open the connector" fallback)
+            Url::redirectToUrl($redirect);
+
+            return '';
         }
         $state = ConnectorInstaller::decide($env);
-        if ($state === ConnectorInstaller::HIDDEN) {
-            Url::redirectToUrl('index.php?module=CoreAdminHome&action=home');
-        }
         if ($state !== ConnectorInstaller::INSTALL && $state !== ConnectorInstaller::ACTIVATE) {
             return $this->renderConnectorInstaller($env, null);
         }
@@ -236,6 +239,8 @@ class Controller extends \Piwik\Plugin\Controller
         $view->installerWordPressUrl = ConnectorInstaller::wordpressUrl();
         $view->installerConnectorUrl = ConnectorInstaller::CONNECTOR_URL;
         $view->installerPhpFloor = ConnectorInstaller::PHP_FLOOR;
+        $view->installerPluginsAdmin = $env['pluginsAdmin'];
+        $view->installerConsoleCommand = ConnectorInstaller::CONSOLE_COMMAND;
 
         return $view->render();
     }
