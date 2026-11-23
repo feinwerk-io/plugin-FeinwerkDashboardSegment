@@ -82,8 +82,7 @@ appears in the per‑widget picker.
 
 ## Requirements
 
-- Matomo 5.x
-- PHP 8.1 or newer
+- Matomo 6
 - The bundled **Dashboard** and **SegmentEditor** plugins (active by default).
 
 Available in English, German, French, Spanish and Italian.

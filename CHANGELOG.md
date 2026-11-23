@@ -1,92 +1,58 @@
 # Changelog
 
-## 5.3.1
+## 6.0.0
 
-- The Feinwerk Connector page also opens from administration pages without a selected website. Where plugin
-  administration is switched off, it shows the command that activates the connector.
+The first stable version for Matomo 6. Compared with the last beta for Matomo 6 before the new version numbers
+(1.0.0-beta.3):
 
-## 5.3.0
-
-- New: while the free Feinwerk Connector is not active, super users find "Feinwerk Plugins", "Install Feinwerk
-  Connector" in Matomo's Administration. One click installs it from the Matomo Marketplace and activates it, after
-  Matomo's password check; where Matomo cannot install from its Marketplace, the page explains the manual way.
-  `connector_installer = 0` in `[FeinwerkDashboardSegment]` hides the entry.
-- The plugin now speaks French, Spanish and Italian as well.
-
-## 5.2.0
-
-- The dashboard default segment is now a button in the bar at the top, next to the date and Matomo's segment
-  selection ("Dashboard segment: ..."), instead of a line above the widgets.
-
-## 5.1.1
-
-- The demo link on the Matomo Marketplace page opens the demo again.
-
-## 5.1.0
-
-- Each Matomo user now keeps their own widget segments and time ranges on every database: an update makes the plugin
-  compare stored logins exactly. Before, of two users whose logins differ only in case (such as "Anna" and "anna") only
-  the first could save a setting for the same widget. Settings stored under a login typed in another case (for example
-  a dashboard copied to "BOB" for the user "bob") move to that user.
+- New version numbers: the plugin for Matomo 6 now carries version 6.x, the one for Matomo 5 version 5.x.
+- The dashboard default segment is a button in the bar at the top, next to the date and Matomo's segment selection
+  ("Dashboard segment: ..."), instead of a line above the widgets. Without a default its menu says "No default (segment
+  chosen at the top)". It does not appear on subscribed, read-only dashboards.
+- Each Matomo user keeps their own widget segments and time ranges on every database: logins are compared exactly, and
+  an update stores them that way. Before, on some databases two users whose logins differ only in case (such as "Anna"
+  and "anna", depending on the database also "ß" and "ss") could see, change or remove each other's settings on a
+  dashboard with the same number. Settings stored under a login typed in another case move to that user.
 - The plugin's API refuses invalid input (an empty widget, a date or time range Matomo cannot show, a website number of
   0) with an error (HTTP 400) instead of storing it, and a setting that belongs to another user with HTTP 409.
-- The README has a new section on privacy, and the Matomo Marketplace page has new screenshots and a demo link.
-
-## 5.0.3
-
-- Fixed: on some databases two Matomo users whose logins differ only in case (or, depending on the database, in
-  letters such as "ß" and "ss") could see, change or remove each other's widget segments and time ranges on a
-  dashboard with the same number. Logins are now compared exactly.
-
-## 5.0.2
-
-- Without a dashboard default segment, the control above the widgets now says "No default (segment chosen at the top)"
-  instead of "Inherit dashboard default".
-- The "New segment" link in the segment menu shows Matomo's plus icon. Before, browsers without an emoji
-  font showed an empty box there.
-
-## 5.0.1
-
+- Administration: while the free Feinwerk Connector is not active, super users find "Feinwerk Plugins", "Install
+  Feinwerk Connector". One click installs it from the Matomo Marketplace and activates it, after Matomo's password
+  check; where Matomo cannot install from its Marketplace, the page explains the manual way, and where plugin
+  administration is switched off it shows the command that activates the connector. `connector_installer = 0` in
+  `[FeinwerkDashboardSegment]` hides the entry.
+- The plugin speaks French, Spanish and Italian as well as English and German.
 - Fixed: when Feinwerk Dashboard Sharing is installed but not active, the hint for super users asks to activate it
   instead of installing it.
-- Removed again: the feedback question below the dashboard default segment and the tips from Feinwerk (the line below
-  the default segment, the banner on the start page of the administration and the boxes on the Campaigns, Ecommerce
-  overview and Goals overview reports) that 5.0.0 added.
+- The "New segment" link in the segment menu shows Matomo's plus icon; menu borders use Matomo 6's border colour.
+- Documentation: the README has a section on privacy; the Matomo Marketplace page has new screenshots, a new cover and
+  a working demo link.
 
-## 5.0.0
-
-- New: below the dashboard default segment you can tell us with thumbs up or down whether your widgets show the right
-  segment, and "Support" opens the Feinwerk contact form. Your Matomo server sends the answer with the plugin and Matomo
-  version, the browser and the interface language, nothing else. `feedback = 0` in `[FeinwerkDashboardSegment]` switches
-  it off.
-- New: tips from Feinwerk for admins and super users: one line below the dashboard default segment, one banner on the
-  start page of the administration and one box at the end of the Campaigns, Ecommerce overview and Goals overview
-  reports. "×" hides a tip for 30 days; nothing is loaded from outside. `promotions = 0` in
-  `[FeinwerkDashboardSegment]` switches them off, in `[FeinwerkMarketplaceConnector]` for all Feinwerk plugins.
-- Version numbers now follow Matomo: 5.x for Matomo 5 (this release follows 0.7.2), 6.x for Matomo 6.
-- Needs PHP 8.1 or newer, like the other Feinwerk plugins.
-
-## 0.7.2
+## 1.0.0-beta.3
 
 - Opening a dashboard with a default segment, or leaving it again, now loads each widget once when that changes the
   segment you see. Before, every widget was requested twice, which put extra load on the Matomo server.
 
-## 0.7.1
+## 1.0.0-beta.2
 
 - Fixed: a segment you pick at the top while a dashboard is still loading now stays. Before, the dashboard default (or
   your previous segment) could replace it once the dashboard had loaded.
 - Fixed: when you open a shared dashboard you subscribed to, changes the owner made to the segment or time range of a
-  widget now show right away, not only after reloading the page. Needs Feinwerk Dashboard Sharing 1.0.3 or later.
+  widget now show right away, not only after reloading the page. Needs Feinwerk Dashboard Sharing 2.0.0-beta.1 or later.
 - Fixed: removing a dashboard now also removes its segments and time ranges. Before, a dashboard you created later
   could take them over.
-- Fixed: going from a dashboard with a default segment to a goal page could keep the dashboard's segment.
+- Fixed: when you leave a dashboard with a default segment for a goal page, your previous segment comes back.
+
+## 1.0.0-beta.1
+
+- Works with Matomo 6. For Matomo 5, version 0.x stays available and is maintained in parallel.
 - Fixed: opening a dashboard with a dashboard default segment could leave the dashboard empty. The default segment is now
   applied once the dashboard has loaded.
 - Fixed: when a segment or time range cannot be saved, only the plugin's own notification appears (no second, generic
   error box and no error in the browser console).
 - If a change was saved but the dashboard could not be updated, a notification asks you to reload the page.
+- The "Dashboard default segment" control now sits in Matomo's own place above the widgets.
 - The segment and time range buttons in a widget header are spaced and coloured like Matomo's own widget buttons.
-- From Matomo 5.14.1 on, the "Dashboard default segment" control sits in Matomo's own place above the widgets.
+- Values sent to the plugin's API with leading or trailing spaces are stored without them.
 
 ## 0.7.0
 

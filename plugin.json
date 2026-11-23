@@ -1,6 +1,6 @@
 {
     "name": "FeinwerkDashboardSegment",
-    "version": "5.3.1",
+    "version": "6.0.0",
     "description": "Give every dashboard widget its own segment and time range, plus one default segment for the whole dashboard. Compare audiences side by side.",
     "keywords": [
         "dashboard",
@@ -19,7 +19,7 @@
         }
     ],
     "require": {
-        "matomo": ">=5.0.0,<6.0.0-b1",
+        "matomo": ">=6.0.0-b1,<7.0.0-b1",
         "php": ">=8.1.0"
     },
     "category": "customisation",
