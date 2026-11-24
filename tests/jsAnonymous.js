@@ -1,7 +1,7 @@
 /**
  * Anonymous viewers (run: `node tests/jsAnonymous.js` from the plugin dir): public dashboards are
  * viewed without login, and every endpoint of this plugin requires one. The script must stay idle:
- * no requests, no wrapped widget loader, no controls.
+ * no requests, no wrapped widget loader, no extended ajaxHelper, no controls.
  *
  * Executes javascripts/dashboardSegment.js with stubbed Matomo globals to catch runtime errors in
  * the load/bootstrap path AND inside the async .then() callbacks (enterDashboard -> getLinkInfo ->
@@ -53,6 +53,8 @@ window.ajaxHelper = function () {
         send: function () { return Promise.resolve([]); }
     };
 };
+var originalMixin = function (params) { return params; };
+window.ajaxHelper.prototype.mixinDefaultGetParams = originalMixin;
 global._pk_translate = function (k) { return k; };
 window.setTimeout = function (fn) { return setTimeout(fn, 0); };
 window.clearTimeout = function (t) { return clearTimeout(t); };
@@ -67,5 +69,6 @@ require('../javascripts/dashboardSegment.js');
 setTimeout(function () {
     if (requests !== 0) { console.error('FAIL: ' + requests + ' request(s) sent for an anonymous viewer'); process.exit(1); }
     if (window.widgetsHelper.loadWidgetAjax !== originalLoader) { console.error('FAIL: widget loader wrapped for an anonymous viewer'); process.exit(1); }
-    console.log('ANONYMOUS OK: no requests, widget loader untouched');
+    if (window.ajaxHelper.prototype.mixinDefaultGetParams !== originalMixin) { console.error('FAIL: ajaxHelper extended for an anonymous viewer'); process.exit(1); }
+    console.log('ANONYMOUS OK: no requests, widget loader and ajaxHelper untouched');
 }, 60);

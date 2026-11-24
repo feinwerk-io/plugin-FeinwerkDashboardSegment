@@ -1,6 +1,6 @@
 {
     "name": "FeinwerkDashboardSegment",
-    "version": "5.3.1",
+    "version": "5.4.0",
     "description": "Give every dashboard widget its own segment and time range, plus one default segment for the whole dashboard. Compare audiences side by side.",
     "keywords": [
         "dashboard",

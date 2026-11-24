@@ -30,8 +30,8 @@ widget its own, so a single dashboard can compare audiences and periods side by 
 - **Remembered:** choices are stored per user, dashboard and website and come back every time the dashboard opens.
 
 **Which widgets support it:** report tables (for example Channel Types, Pages or Countries) get their own segment and
-time range. Graphs, sparklines, overview and real-time widgets and the Visitor Map follow the dashboard default
-segment instead.
+time range. Graphs, sparklines, overview and real-time widgets, the Visitor Map and widgets of other plugins that load
+their data in the browser follow the dashboard default segment instead and show no buttons.
 
 **Get started:** open a dashboard and use the segment button in a widget header.
 
@@ -59,7 +59,7 @@ Documentation: [plugins.feinwerk.io](https://plugins.feinwerk.io/en/plugins/Fein
 - **Per‑widget time range**: optionally give a widget its own period/date (e.g. *Last 30 days* or
   *Yesterday*) independent of the dashboard's range.
 - A small **bar under the widget header** shows the active segment and time range, each with a **×**
-  to remove it (fall back to all data / the dashboard range).
+  to remove it (back to the dashboard default / the dashboard time range).
 
 Precedence: `per‑widget override (server‑rendered widgets)  >  dashboard default (= the dashboard's global segment)  >  the segment you had before`.
 
@@ -110,10 +110,38 @@ Do not uninstall `DashboardSegment` yourself.
 
 1. Open a dashboard.
 2. Use the **segment button** in a widget's header to pick a segment, "No segment (all data)", or
-   "Inherit dashboard default".
+   "Use dashboard default". The calendar button next to it gives the widget a time range of its own.
 3. Use the **Dashboard segment** button in the bar at the top, next to the date, to set a default for the whole
    dashboard.
 4. Switch sites to manage each site's selection independently.
+
+## API
+
+Everything the buttons do is also available through Matomo's HTTP API (module `FeinwerkDashboardSegment`), for
+scripts and AI assistants. Every call works on the calling user's own dashboards and needs view access to the website.
+A widget is addressed by its instance id, the value `dsSegId` that the plugin stores in the widget's parameters in the
+dashboard layout (`Dashboard.getDashboards`). `idDashboard` is the dashboard number from `Dashboard.getDashboards`.
+
+Read the settings of a dashboard (its default segment and each widget's own segment and time range):
+
+    index.php?module=API&method=FeinwerkDashboardSegment.getWidgetSettings&idDashboard=1&idSite=1&format=json&token_auth=...
+
+Give a widget a segment of its own (`__none__` shows it without any segment, an empty value lets it follow the
+dashboard again):
+
+    index.php?module=API&method=FeinwerkDashboardSegment.setWidgetSegment&idDashboard=1&idSite=1&widgetUniqueId=imwtkmv6645rkow&segment=deviceType%3D%3Dsmartphone&format=json&token_auth=...
+
+Give a widget a time range of its own (`period` day, week, month, year or range; `date` today, yesterday or
+YYYY-MM-DD, for range lastN, previousN or two dates separated by a comma; an empty `period` removes it):
+
+    index.php?module=API&method=FeinwerkDashboardSegment.setWidgetPeriod&idDashboard=1&idSite=1&widgetUniqueId=imwtkmv6645rkow&period=range&date=last30&format=json&token_auth=...
+
+Set the segment a dashboard opens with (`__none__` for all data, an empty value removes it):
+
+    index.php?module=API&method=FeinwerkDashboardSegment.setDashboardDefaultSegment&idDashboard=1&idSite=1&segment=deviceType%3D%3Dsmartphone&format=json&token_auth=...
+
+Invalid values answer with HTTP 400 and name the parameter; a setting that belongs to another user answers with
+HTTP 409. The saved segments to choose from come from Matomo's own `SegmentEditor.getAll`.
 
 ## Known limitations / roadmap
 

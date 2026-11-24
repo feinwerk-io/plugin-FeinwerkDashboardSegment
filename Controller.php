@@ -185,25 +185,31 @@ class Controller extends \Piwik\Plugin\Controller
         }
 
         $nonce = Common::getRequestVar('nonce', '', 'string');
+        $retry = Common::getRequestVar('retry', 0, 'int') === 1;
         $verified = StaticContainer::get(\Piwik\Plugins\Login\PasswordVerifier::class)->requirePasswordVerifiedRecently([
             'module' => ConnectorInstaller::PLUGIN,
             'action' => 'connectorInstallerRun',
             'nonce' => $nonce,
+            'retry' => $retry ? 1 : 0,
         ]);
         if (!$verified) {
-            // Matomo sends the user to its password page and comes back here afterwards
+            // Matomo is sending the user to its password page (it returns only when its redirect is off)
             return '';
         }
 
-        $error = Nonce::verifyNonceWithErrorMessage(ConnectorInstaller::NONCE, $nonce);
-        if ($error !== '') {
-            // Matomo's own reason, from its translations (may hold its FAQ link)
-            return $this->renderConnectorInstaller($env, ['ok' => false, 'message' => $error, 'html' => true]);
+        $nonceError = Nonce::verifyNonceWithErrorMessage(ConnectorInstaller::NONCE, $nonce);
+        if ($nonceError !== '') {
+            // An expired nonce or Matomo's referrer check (seen right after its password step, e.g. after an SSO login):
+            // nothing is installed, the page comes back with a fresh button and a short note. A second failure in a row
+            // has a lasting cause (proxy, trusted host, origin): then Matomo's own reason, which may hold its FAQ link.
+            return $retry
+                ? $this->renderConnectorInstaller($env, ['ok' => false, 'message' => $nonceError, 'html' => true])
+                : $this->renderConnectorInstaller($env, null, true);
         }
         Nonce::discardNonce(ConnectorInstaller::NONCE);
 
         $result = ConnectorInstaller::run(
-            $env['present'],
+            ConnectorInstaller::usableFiles($env),
             static function (): void {
                 (new \Piwik\Plugins\CorePluginsAdmin\PluginInstaller())->installOrUpdatePluginFromMarketplace(ConnectorInstaller::CONNECTOR);
             },
@@ -221,12 +227,13 @@ class Controller extends \Piwik\Plugin\Controller
     /**
      * @param array<string, bool> $env
      * @param array{ok: bool, message: string, html: bool}|null $result
+     * @param bool $clickAgain the nonce no longer matched: a fresh button and a short note
      */
-    private function renderConnectorInstaller(array $env, ?array $result): string
+    private function renderConnectorInstaller(array $env, ?array $result, bool $clickAgain = false): string
     {
         $view = new View('@FeinwerkDashboardSegment/connectorInstaller');
-        // an admin page: no website needed (the menu entry is reached from pages without idSite too), and Matomo's
-        // admin rule for frames (enable_framed_settings, X-Frame-Options sameorigin by default)
+        // an admin page without a website: setGeneralVariablesView() needs idSite (the menu entry is reached from
+        // admin pages without one); the admin variables also send X-Frame-Options as enable_framed_settings says
         $this->setBasicVariablesView($view);
         \Piwik\Plugin\ControllerAdmin::setBasicVariablesAdminView($view);
         $state = ConnectorInstaller::decide($env);
@@ -241,6 +248,9 @@ class Controller extends \Piwik\Plugin\Controller
         $view->installerPhpFloor = ConnectorInstaller::PHP_FLOOR;
         $view->installerPluginsAdmin = $env['pluginsAdmin'];
         $view->installerConsoleCommand = ConnectorInstaller::CONSOLE_COMMAND;
+        $view->installerClickAgain = $clickAgain;
+        // <html lang> and piwik.language: setBasicVariablesView() does not set them on this page
+        $view->language = ConnectorInstaller::pageLanguage();
 
         return $view->render();
     }

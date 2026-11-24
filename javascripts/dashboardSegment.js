@@ -16,6 +16,8 @@
     'use strict';
 
     var NONE = '__none__';
+    // Request parameter of a widget set to "No segment (all data)", see applyAction()
+    var NO_SEGMENT_PARAM = 'fwdsNoSegment';
 
     // Period presets: key -> Matomo period/date pair + translation key.
     var PERIOD_PRESETS = [
@@ -32,6 +34,20 @@
         PERIOD_PRESETS.forEach(function (p) { if (p.key === key) { found = p; } });
         return found;
     }
+    // "Last 30 days: from ... to ..." for the chip's tooltip (Peter, 2026-11-24, P2 A: presets count from today). Matomo's
+    // own period helpers (site time zone); '' where they are missing.
+    function presetRangeText(preset) {
+        try {
+            var range = window.CoreHome.Periods.parse(preset.period, preset.date).getDateRange();
+            var lang = (window.piwik && window.piwik.language) || undefined;
+            var fmt = function (d) { return d.toLocaleDateString(lang, { year: 'numeric', month: 'short', day: 'numeric' }); };
+            if (range[0].getTime() === range[1].getTime()) { return fmt(range[0]); }
+            return _pk_translate('General_DateRangeFromTo', [fmt(range[0]), fmt(range[1])]);
+        } catch (e) {
+            return '';
+        }
+    }
+
     function presetForStored(period, date) {
         var found = null;
         PERIOD_PRESETS.forEach(function (p) { if (p.period === period && p.date === date) { found = p; } });
@@ -103,10 +119,14 @@
         return (widget && widget.widgetParameters && widget.widgetParameters.dsSegId) || '';
     }
 
+    function newInstanceId() {
+        return 'i' + (new Date()).getTime().toString(36) + Math.random().toString(36).slice(2, 8);
+    }
+
     function ensureInstanceId(widget) {
         var id = instanceIdOf(widget);
         if (!id) {
-            id = 'i' + (new Date()).getTime().toString(36) + Math.random().toString(36).slice(2, 8);
+            id = newInstanceId();
             if (typeof widget.setParameters === 'function') {
                 widget.setParameters({ dsSegId: id });
             } else {
@@ -126,12 +146,48 @@
         }
     }
 
-    // Apply a resolved segment action to an outgoing params object.
-    function applyAction(params, action) {
+    // Apply a resolved segment action to an outgoing params object. `own`: the widget's own override, not the default.
+    function applyAction(params, action, own) {
+        delete params[NO_SEGMENT_PARAM];
         if (!action) { return; }
-        if (action.action === 'remove') { delete params.segment; }
-        else if (action.action === 'set') { params.segment = action.segment; }
+        if (action.action === 'remove' && own) {
+            // Matomo's ajaxHelper fills a missing or empty segment with the page's one. An explicit empty segment is
+            // kept since Matomo 5.14; the marker makes installNoSegmentDefault() keep it on every version. Matomo copies
+            // the widget request's parameters into the widget's tables, so their own requests (sorting, paging) carry
+            // the marker too, while they leave the empty segment out.
+            params.segment = '';
+            params[NO_SEGMENT_PARAM] = '1';
+        } else if (action.action === 'remove') {
+            // A dashboard default "all data" cleared the page's segment on entry; a segment chosen at the top during
+            // the visit wins (README), so these widgets follow the page.
+            delete params.segment;
+        } else if (action.action === 'set') { params.segment = action.segment; }
         // 'inherit' (or absent) => leave params.segment untouched.
+    }
+
+    // A request that carries the marker gets no segment from the page: only that default is switched off, a segment the
+    // request names itself (a table row's segmented visitor log, for example) stays. Installed once, and only when
+    // Matomo's ajaxHelper has the method; an error inside leaves Matomo's own behaviour.
+    var noSegmentDefaultFor = null;
+    function hasNoSegmentMarker(params) {
+        return !!params && String(params[NO_SEGMENT_PARAM]) === '1';
+    }
+    function installNoSegmentDefault() {
+        var proto = window.ajaxHelper && window.ajaxHelper.prototype;
+        if (!proto || typeof proto.mixinDefaultGetParams !== 'function' || noSegmentDefaultFor === proto) { return; }
+        var original = proto.mixinDefaultGetParams;
+        proto.mixinDefaultGetParams = function (params) {
+            try {
+                if ((hasNoSegmentMarker(params) || hasNoSegmentMarker(this.postParams))
+                    && typeof this.removeDefaultParameter === 'function') {
+                    this.removeDefaultParameter('segment');
+                }
+            } catch (e) {
+                if (window.console) { window.console.error('FeinwerkDashboardSegment no-segment request failed', e); }
+            }
+            return original.apply(this, arguments);
+        };
+        noSegmentDefaultFor = proto;
     }
 
     // ---- settings access --------------------------------------------------------------------
@@ -187,6 +243,7 @@
     // ---- core wrapper -----------------------------------------------------------------------
 
     FeinwerkDashboardSegment.installWrapper = function () {
+        installNoSegmentDefault();
         if (this.wrapped || !window.widgetsHelper || typeof window.widgetsHelper.loadWidgetAjax !== 'function') {
             return;
         }
@@ -208,7 +265,8 @@
                 // and drop our internal marker so it is not sent to the widget request.
                 params = window.$.extend({}, widgetParameters);
                 delete params.dsSegId;
-                applyAction(params, self.actionFor(instanceId));
+                var entry = self.entryFor(instanceId);
+                applyAction(params, self.actionFor(instanceId), !!(entry && entry.segment));
                 var p = self.periodFor(instanceId);
                 if (p && p.period) { params.period = p.period; params.date = p.date; }
             } catch (e) {
@@ -513,26 +571,188 @@
     };
 
     // ---- menus ------------------------------------------------------------------------------
+    // One menu at a time (a widget's segment or time range, the dashboard default), all with the same behaviour: a list
+    // of options (listbox, aria-selected), Up/Down/Home/End move, Enter or Space picks, Escape closes; after a pick or
+    // Escape the focus goes back to the button that opened it, a click outside or Tab closes it. The segment menus have
+    // a labelled search field (Down goes into the list, Enter picks the only match). A menu opens under its button and
+    // stays inside the window: where it would cross the right edge it lines up with the button's right edge.
+    var activeMenu = null;
+    var menuSeq = 0;
 
-    function placeMenu($menu, $anchor) {
-        window.$('body').append($menu);
-        var off = $anchor.offset();
-        $menu.css({ position: 'absolute', top: off.top + $anchor.outerHeight(), left: off.left, zIndex: 1000 });
-        setTimeout(function () {
-            window.$(document).one('click.dashboardSegment', function () { $menu.remove(); });
-        }, 0);
+    function closeActiveMenu(focusOpener) {
+        if (activeMenu) { activeMenu.close(focusOpener); }
     }
 
-    function openMenu($anchor, items, currentValue, onPick) {
+    // fixed: the menu sits in a maximised widget (Matomo's modal dialog) and is placed in window coordinates there
+    function positionMenu($menu, $anchor, fixed) {
+        var rect = fixed && $anchor[0] && $anchor[0].getBoundingClientRect ? $anchor[0].getBoundingClientRect() : null;
+        var off = rect ? { top: rect.top, left: rect.left } : $anchor.offset();
+        var top = off.top + $anchor.outerHeight();
+        var left = off.left;
+        try {
+            var margin = 8;
+            var $win = window.$(window);
+            var viewLeft = rect ? 0 : $win.scrollLeft();
+            var viewRight = viewLeft + ((document.documentElement && document.documentElement.clientWidth) || $win.width());
+            var width = $menu.outerWidth();
+            if (left + width > viewRight - margin) { left = off.left + $anchor.outerWidth() - width; }
+            left = Math.max(viewLeft + margin, Math.min(left, viewRight - margin - width));
+        } catch (e) {
+            left = off.left;
+        }
+        $menu.css({ position: rect ? 'fixed' : 'absolute', top: top, left: left });
+    }
+
+    // options: { label, heading (a visible first line, optional), items: [{label, value}], current, search (placeholder and
+    // label, or null), noMatch, note (a muted line under the list, optional), footers (links under the list, [$el]),
+    // onPick(value) }
+    function showMenu($opener, options) {
+        if (activeMenu && activeMenu.opener === $opener[0]) { closeActiveMenu(true); return; } // the same button again
+        closeActiveMenu(false);
+
+        var listId = 'fwds-menu-' + (++menuSeq);
         var $menu = window.$('<div class="dashboardSegmentMenu"></div>');
-        items.forEach(function (it) {
-            var isActive = (it.value === currentValue);
-            var $r = window.$('<div class="dashboardSegmentItem"></div>').text((isActive ? '✓ ' : '') + it.label);
+        var $list = window.$('<div class="dsMenuList" role="listbox"></div>').attr('id', listId).attr('aria-label', options.label);
+        var rows = [];
+        var $search = null;
+        var $none = null;
+        var closed = false;
+        var footers = options.footers || [];
+
+        function visibleRows() {
+            return rows.filter(function ($r) { return $r.css('display') !== 'none'; });
+        }
+        function focusRow(index) {
+            var list = visibleRows();
+            if (!list.length) { return; }
+            list[Math.max(0, Math.min(index, list.length - 1))][0].focus();
+        }
+        function close(focusOpener) {
+            if (closed) { return; }
+            closed = true;
+            window.$(document).off('mousedown.dsMenu keydown.dsMenu');
+            $menu.remove();
+            $opener.attr('aria-expanded', 'false');
+            if (activeMenu && activeMenu.opener === $opener[0]) { activeMenu = null; }
+            if (focusOpener && $opener[0] && typeof $opener[0].focus === 'function') { $opener[0].focus(); }
+        }
+        function pick(value) {
+            close(true);
+            options.onPick(value);
+        }
+
+        options.items.forEach(function (it) {
+            var isActive = (it.value === options.current);
+            var $r = window.$('<div class="dashboardSegmentItem" role="option" tabindex="-1"></div>')
+                .attr('aria-selected', isActive ? 'true' : 'false')
+                .attr('data-label', String(it.label || '').toLowerCase())
+                .append(window.$('<span class="dsCheck" aria-hidden="true">✓</span>'))
+                .append(window.$('<span class="dsItemLabel"></span>').text(it.label));
             if (isActive) { $r.addClass('active'); }
-            $r.on('click', function () { $menu.remove(); onPick(it.value); });
-            $menu.append($r);
+            $r.on('click', function () { pick(it.value); });
+            $r.on('keydown', function (e) {
+                var list = visibleRows();
+                var at = list.indexOf($r);
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    // past the last option: the links below the list ("New segment", "Add a copy ...")
+                    if (at >= list.length - 1 && footers.length) { footers[0][0].focus(); } else { focusRow(at + 1); }
+                }
+                else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (at <= 0 && $search) { $search[0].focus(); } else { focusRow(at - 1); }
+                }
+                else if (e.key === 'Home') { e.preventDefault(); focusRow(0); }
+                else if (e.key === 'End') { e.preventDefault(); focusRow(list.length - 1); }
+                else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(it.value); }
+            });
+            rows.push($r);
+            $list.append($r);
         });
-        placeMenu($menu, $anchor);
+
+        var headingId = listId + '-heading';
+        if (options.heading) {
+            $menu.append(window.$('<div class="dsMenuHeading"></div>').attr('id', headingId).text(options.heading));
+        }
+        if (options.search) {
+            $menu.addClass('dsSearchable');
+            $search = window.$('<input type="text" class="dsMenuSearch browser-default" />')
+                .attr('placeholder', options.search)
+                .attr('aria-label', options.search)
+                .attr('aria-controls', listId);
+            if (options.heading) { $search.attr('aria-describedby', headingId); }
+            $menu.append(window.$('<div class="dsMenuSearchWrap"></div>').append($search));
+            $none = window.$('<div class="dsMenuNone" role="status"></div>').hide();
+            $search.on('input', function () {
+                var q = (this.value || '').toLowerCase();
+                var hits = 0;
+                rows.forEach(function ($r) {
+                    var hit = !q || ($r.attr('data-label') || '').indexOf(q) !== -1;
+                    $r.css('display', hit ? '' : 'none');
+                    if (hit) { hits++; }
+                });
+                // a search without a match says so ("New segment" stays below it)
+                if (hits) { $none.hide().text(''); } else { $none.text(options.noMatch || '').show(); }
+            });
+            $search.on('keydown', function (e) {
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (!visibleRows().length && footers.length) { footers[0][0].focus(); } else { focusRow(0); }
+                }
+                else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    var list = visibleRows();
+                    if (list.length === 1) { list[0].trigger('click'); } else { focusRow(0); }
+                }
+            });
+        }
+        $menu.append($list);
+        if (options.search) { $menu.append($none); }
+        if (options.note) { $menu.append(window.$('<div class="dsMenuNote"></div>').text(options.note)); }
+        footers.forEach(function ($link, i) {
+            $link.on('click', function () { close(false); });
+            $link.on('keydown', function (e) {
+                if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    var list = visibleRows();
+                    if (i > 0) { footers[i - 1][0].focus(); }
+                    else if (list.length) { list[list.length - 1][0].focus(); } else if ($search) { $search[0].focus(); }
+                } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (footers[i + 1]) { footers[i + 1][0].focus(); }
+                } else if (e.key === ' ') { e.preventDefault(); $link.trigger('click'); }
+            });
+            $menu.append($link);
+        });
+
+        // Tab or Shift+Tab anywhere in the menu (option, search, "New segment"): the menu closes and the focus goes to its
+        // button first, so the browser moves on to the control after or before that button, not to the end of the page
+        $menu.on('keydown', function (e) {
+            if (e.key === 'Tab') { close(true); }
+            // Escape closes the menu only, not a maximised widget's dialog around it
+            else if (e.key === 'Escape' || e.keyCode === 27) { e.preventDefault(); e.stopPropagation(); close(true); }
+        });
+
+        // A maximised widget is Matomo's modal dialog: a menu outside it would sit behind it, and the dialog would pull the
+        // focus back. There the menu goes into the dialog and is placed in window coordinates.
+        var $dialog = $opener.closest('.ui-dialog');
+        (($dialog && $dialog.length) ? $dialog : window.$('body')).append($menu);
+        positionMenu($menu, $opener, !!($dialog && $dialog.length));
+        $opener.attr('aria-expanded', 'true');
+        activeMenu = { opener: $opener[0], close: close };
+
+        window.setTimeout(function () {
+            if (closed) { return; }
+            window.$(document).on('mousedown.dsMenu', function (e) {
+                if ($menu[0] && !$menu[0].contains(e.target) && !($opener[0] && $opener[0].contains(e.target))) { close(false); }
+            });
+            window.$(document).on('keydown.dsMenu', function (e) {
+                if (e.key === 'Escape' || e.keyCode === 27) { e.preventDefault(); close(true); }
+            });
+            if ($search) { $search[0].focus(); return; }
+            var current = rows.filter(function ($r) { return $r.hasClass('active'); })[0];
+            if (current) { current[0].focus(); } else { focusRow(0); }
+        }, 0);
     }
 
     // Open Matomo's own segment editor (the top-bar selector) so a new saved segment can be created
@@ -554,13 +774,21 @@
         }
     }
 
-    // Options for the segment picker: inherit · no segment · each saved segment.
-    // Segment picker: our own themed menu with a search box and a "New segment" link. Rendered by
-    // us rather than Matomo's expandable-select, which is built for in-form use and misbehaves in a
-    // floating popover. The period picker keeps the plain openMenu (only a handful of presets).
-    // emptyKey: the label of "nothing chosen" ('' value); a widget inherits the dashboard default, the dashboard
-    // default itself has none and uses the segment chosen at the top
-    function openSegmentMenu($anchor, current, onPick, emptyKey) {
+    // The segment menu: inherit, no segment, each saved segment, a search field and a "New segment" link. Our own
+    // themed menu rather than Matomo's expandable-select, which is built for in-form use and misbehaves in a floating
+    // popover. emptyKey: the label of "nothing chosen" ('' value); a widget inherits the dashboard default, the
+    // dashboard default itself has none and uses the segment chosen at the top.
+    // A maximised widget is Matomo's modal dialog: Matomo's segment editor would open behind it and a copy could not be
+    // placed next to it, so "New segment" and "Add a copy" restore the widget first (quick UI review 2026-11-24, F1).
+    function leaveMaximised($anchor) {
+        var $content = $anchor.closest('.ui-dialog-content');
+        if (!$content.length) { return; }
+        try { $content.dialog('close'); } catch (e) { /* not a dialog any more */ }
+    }
+
+    // extras: { newFor: function () returning the widget's instance id or 'default' (B1), copy: function () (B3) }
+    function openSegmentMenu($anchor, current, onPick, emptyKey, label, extras) {
+        extras = extras || {};
         FeinwerkDashboardSegment.loadSegments(function (segments) {
             var items = [
                 { label: _pk_translate(emptyKey || 'FeinwerkDashboardSegment_InheritDefault'), value: '' },
@@ -568,101 +796,314 @@
             ];
             (segments || []).forEach(function (s) { items.push({ label: s.name, value: s.definition }); });
 
-            var $menu = window.$('<div class="dashboardSegmentMenu dsSearchable"></div>');
-            var closed = false;
-            function close() {
-                if (closed) { return; }
-                closed = true;
-                window.$(document).off('mousedown.dsMenu keydown.dsMenu');
-                $menu.remove();
-            }
-
-            var $search = window.$('<input type="text" class="dsMenuSearch" />')
-                .attr('placeholder', _pk_translate('FeinwerkDashboardSegment_SearchSegments'));
-            $menu.append(window.$('<div class="dsMenuSearchWrap"></div>').append($search));
-
-            var $list = window.$('<div class="dsMenuList"></div>');
-            var rows = [];
-            items.forEach(function (it) {
-                var isActive = (it.value === current);
-                var $r = window.$('<div class="dashboardSegmentItem"></div>').text((isActive ? '✓ ' : '') + it.label);
-                if (isActive) { $r.addClass('active'); }
-                $r.attr('data-label', (it.label || '').toLowerCase());
-                $r.on('click', function () { close(); onPick(it.value); });
-                rows.push($r);
-                $list.append($r);
-            });
-            $menu.append($list);
-
+            var footers = [];
             if (segmentEditorAvailable()) {
                 // Matomo's own icon font, not an emoji: without an emoji font a browser shows an empty box
                 var $new = window.$('<a href="javascript:;" class="dsLink dsNewSegment"></a>')
                     .append(window.$('<span class="icon-add" aria-hidden="true"></span>'))
-                    .append(document.createTextNode(' ' + _pk_translate('FeinwerkDashboardSegment_NewSegment')));
-                $new.on('click', function () { close(); openNewSegmentEditor(); });
-                $menu.append($new);
+                    .append(window.$('<span class="dsLinkText"></span>').text(_pk_translate('FeinwerkDashboardSegment_NewSegment')));
+                $new.on('click', function () {
+                    leaveMaximised($anchor);
+                    if (extras.newFor) { FeinwerkDashboardSegment.startNewSegmentFor(extras.newFor()); }
+                    openNewSegmentEditor();
+                });
+                footers.push($new);
             }
-
-            $search.on('input', function () {
-                var q = (this.value || '').toLowerCase();
-                rows.forEach(function ($r) {
-                    var hit = !q || ($r.attr('data-label') || '').indexOf(q) !== -1;
-                    $r.css('display', hit ? '' : 'none');
+            if (extras.copy) {
+                var $copy = window.$('<a href="javascript:;" class="dsLink dsAddCopy"></a>')
+                    .append(window.$('<span class="icon-plus-square" aria-hidden="true"></span>'))
+                    .append(window.$('<span class="dsLinkText"></span>').text(_pk_translate('FeinwerkDashboardSegment_AddCopyWithSegment')));
+                $copy.on('click', function () {
+                    closeActiveMenu(false);
+                    leaveMaximised($anchor);
+                    window.setTimeout(extras.copy, 0); // after this menu has closed: the copy's menu opens on the same button
                 });
+                footers.push($copy);
+            }
+            showMenu($anchor, {
+                label: label || _pk_translate('FeinwerkDashboardSegment_PickSegment'),
+                items: items,
+                current: current,
+                search: _pk_translate('FeinwerkDashboardSegment_SearchSegments'),
+                noMatch: _pk_translate('FeinwerkDashboardSegment_NoMatchingSegment'),
+                note: (segments || []).length ? null : _pk_translate('FeinwerkDashboardSegment_NoSavedSegments'),
+                footers: footers,
+                onPick: onPick
             });
+        });
+    }
 
-            window.$('body').append($menu);
-            var off = $anchor.offset();
-            $menu.css({ position: 'absolute', top: off.top + $anchor.outerHeight(), left: off.left, zIndex: 1000 });
+    // ---- B1: a segment made with "New segment" goes to the widget (or the default) it was made for ----------------
+    // Peter, 2026-11-24 ("Erst B1-B4 umsetzen", B1). Matomo's segment editor saves and then reloads the whole page with
+    // the new segment at the top (its mark: addSegmentAsNew in the hash). A short note in sessionStorage, written when
+    // "New segment" is clicked, says for which widget or default it was meant and what was at the top before; on the
+    // next entry of that dashboard the new segment goes there and the top goes back. The note lives 15 minutes and is
+    // read once.
+    var NEW_SEGMENT_NOTE = 'fwdsNewSegmentFor';
+
+    // A save reloads the page right after Matomo's editor closes; the page starting to unload tells a save from a close.
+    var leavingPage = false;
+    var leavingWatched = false;
+
+    function forgetNewSegmentNote() {
+        try { window.sessionStorage.removeItem(NEW_SEGMENT_NOTE); } catch (e) { /* nothing to forget */ }
+    }
+
+    // The editor closed without a save (its close button, Escape, a click outside), or never opened: the note goes, so
+    // a segment saved later through Matomo's own editor is not handed to the widget (quick UI review 2026-11-24, F2).
+    function watchNewSegmentEditor() {
+        if (!leavingWatched && typeof window.addEventListener === 'function') {
+            leavingWatched = true;
+            window.addEventListener('beforeunload', function () { leavingPage = true; });
+        }
+        var started = Date.now();
+        var seen = false;
+        var timer = window.setInterval(function () {
+            var open = window.$('.segment-element:visible').length > 0;
+            if (open) { seen = true; }
+            var waited = Date.now() - started;
+            if ((seen && !open) || (!seen && waited > 10000) || waited > 15 * 60 * 1000) {
+                window.clearInterval(timer);
+                window.setTimeout(function () { if (!leavingPage) { forgetNewSegmentNote(); } }, 1500);
+            }
+        }, 400);
+    }
+
+    FeinwerkDashboardSegment.startNewSegmentFor = function (target) {
+        rememberNewSegmentFor(target);
+        watchNewSegmentEditor();
+    };
+
+    function rememberNewSegmentFor(target) {
+        try {
+            window.sessionStorage.setItem(NEW_SEGMENT_NOTE, JSON.stringify({
+                idSite: String(currentIdSite()),
+                idDashboard: String(currentDashboardId()),
+                target: target,
+                before: readGlobalSegment(),
+                baseline: FeinwerkDashboardSegment.baselineSegment,
+                at: Date.now()
+            }));
+        } catch (e) {
+            // without sessionStorage "New segment" only opens Matomo's editor, as before
+        }
+    }
+
+    function takeNewSegmentNote() {
+        var note = null;
+        try {
+            note = JSON.parse(window.sessionStorage.getItem(NEW_SEGMENT_NOTE) || 'null');
+            window.sessionStorage.removeItem(NEW_SEGMENT_NOTE);
+        } catch (e) {
+            return null;
+        }
+        if (!note || note.idSite !== String(currentIdSite()) || note.idDashboard !== String(currentDashboardId())) { return null; }
+        if (!(Date.now() - note.at < 15 * 60 * 1000)) { return null; }
+        if (String(window.location.hash || '').indexOf('addSegmentAsNew=') === -1) { return null; } // not after a save
+        var segment = readGlobalSegment();
+        if (!segment || segment === note.before) { return null; }
+        note.segment = segment;
+        return note;
+    }
+
+    // The saved definition for a segment read from the URL (the URL may hold it decoded).
+    function savedDefinition(segments, segment) {
+        var found = segment;
+        (segments || []).forEach(function (s) {
+            var d = String(s.definition || '');
+            var decoded = d;
+            try { decoded = decodeURIComponent(d); } catch (e) { /* keep d */ }
+            if (d === segment || decoded === segment) { found = d; }
+        });
+        return found;
+    }
+
+    // Runs at dashboard entry before the default is applied; calls done() when the entry may go on.
+    FeinwerkDashboardSegment.applyNewSegmentNote = function (done) {
+        var self = this;
+        var note = takeNewSegmentNote();
+        if (!note) { done(); return; }
+        self.loadSegments(function (segments) {
+            var definition = savedDefinition(segments, note.segment);
+            var save = note.target === 'default' ? self.saveDefault(definition) : self.saveWidget(note.target, definition);
+            save.then(function (saved) {
+                if (saved) {
+                    var name = self.segmentName(definition);
+                    notify(note.target === 'default'
+                        ? _pk_translate('FeinwerkDashboardSegment_NewSegmentIsDefault', [name])
+                        : _pk_translate('FeinwerkDashboardSegment_NewSegmentForWidget', [name]), 'success');
+                    var $w = window.$('[data-ds-segid="' + String(note.target).replace(/[^A-Za-z0-9_-]/g, '') + '"]');
+                    if (note.target !== 'default' && $w.length && $w[0].scrollIntoView) {
+                        window.setTimeout(function () { $w[0].scrollIntoView({ block: 'nearest' }); }, 1500);
+                    }
+                }
+                if (saved && note.target !== 'default' && !self.settings.defaultAction) {
+                    // no default drives the top: back to what was there before the editor (the restore of the entry
+                    // that follows does it, as when leaving a dashboard with a default)
+                    self.appliedSegment = note.segment;
+                    self.baselineSegment = note.before;
+                } else if (saved && note.baseline !== null && note.baseline !== undefined) {
+                    // as if the editor had not changed the top: the user's own segment from before stays theirs
+                    self.baselineSegment = note.baseline;
+                }
+                done();
+            });
+        });
+    };
+
+    // ---- B3: a copy of a widget with another segment, right below it -----------------------------------------------
+    // Peter, 2026-11-24 (B3). Matomo's own dashboard API adds the widget (dashboard('addWidget')); the copy gets its
+    // instance id and its segment (and the original's time range) before its first load, moves under the original, and
+    // a parameter change makes Matomo save that order in the layout.
+    FeinwerkDashboardSegment.addCopyWithSegment = function (widget, segment) {
+        var self = this;
+        var $orig = widget.element;
+        var $area = window.$('#dashboardWidgetsArea');
+        var $col = $orig.closest('.col');
+        if (!$area.length || !$col.length || typeof $area.dashboard !== 'function') { return Promise.resolve(false); }
+        var id = newInstanceId();
+        var periodKey = self.currentPeriodKey(instanceIdOf(widget));
+        var params = window.$.extend({}, widget.widgetParameters);
+        delete params.segment;
+        params.dsSegId = id;
+        return self.saveWidget(id, segment).then(function (saved) {
+            if (!saved || !periodKey) { return saved; }
+            return self.saveWidgetPeriod(id, periodKey);
+        }).then(function (saved) {
+            if (!saved) { return false; }
+            var before = $col.children('[widgetId]').length;
+            $area.dashboard('addWidget', widget.uniqueId, $col.index() + 1, params, false, false);
+            var $copy = $col.children('[widgetId]').last();
+            if ($col.children('[widgetId]').length <= before || !$copy.length) {
+                self.saveWidget(id, '');
+                if (periodKey) { self.saveWidgetPeriod(id, ''); }
+                return false;
+            }
+            $copy.insertAfter($orig);
+            // addWidget saved the layout with the copy at the end of the column; a parameter change saves the new order,
+            // a moment later so it does not overtake that save
             window.setTimeout(function () {
-                window.$(document).on('mousedown.dsMenu', function (e) {
-                    if ($menu[0] && !$menu[0].contains(e.target)) { close(); }
-                });
-                window.$(document).on('keydown.dsMenu', function (e) {
-                    if (e.key === 'Escape' || e.keyCode === 27) { close(); }
-                });
-                $search.trigger('focus');
-            }, 0);
+                try { $copy.dashboardWidget('setParameters', { dsSegId: id }); } catch (e) { /* saved with the next change */ }
+            }, 800);
+            if ($copy[0] && typeof $copy[0].scrollIntoView === 'function') { $copy[0].scrollIntoView({ block: 'nearest' }); }
+            notify(_pk_translate('FeinwerkDashboardSegment_CopyAdded', [segment === NONE ? _pk_translate('FeinwerkDashboardSegment_NoSegment') : self.segmentName(segment)]), 'success');
+            return true;
+        });
+    };
+
+    function openCopyMenu($anchor, widget) {
+        FeinwerkDashboardSegment.loadSegments(function (segments) {
+            var items = [{ label: _pk_translate('FeinwerkDashboardSegment_NoSegment'), value: NONE }];
+            (segments || []).forEach(function (s) { items.push({ label: s.name, value: s.definition }); });
+            showMenu($anchor, {
+                label: _pk_translate('FeinwerkDashboardSegment_SegmentForCopy'),
+                heading: _pk_translate('FeinwerkDashboardSegment_SegmentForCopy'),
+                items: items,
+                current: FeinwerkDashboardSegment.currentWidgetValue(instanceIdOf(widget)) || null, // the original's own
+                search: _pk_translate('FeinwerkDashboardSegment_SearchSegments'),
+                noMatch: _pk_translate('FeinwerkDashboardSegment_NoMatchingSegment'),
+                note: (segments || []).length ? null : _pk_translate('FeinwerkDashboardSegment_NoSavedSegments'),
+                footers: [],
+                onPick: function (value) {
+                    FeinwerkDashboardSegment.addCopyWithSegment(widget, value).then(function (added) {
+                        if (!added) { notifySaveError(); }
+                    });
+                }
+            });
         });
     }
 
     function openPeriodMenu($anchor, current, onPick) {
         var items = [{ label: _pk_translate('FeinwerkDashboardSegment_InheritPeriod'), value: '' }];
         PERIOD_PRESETS.forEach(function (p) { items.push({ label: _pk_translate(p.label), value: p.key }); });
-        openMenu($anchor, items, current, onPick);
+        showMenu($anchor, {
+            label: _pk_translate('FeinwerkDashboardSegment_PickPeriod'),
+            items: items,
+            current: current,
+            search: null,
+            footers: [],
+            onPick: onPick
+        });
     }
 
     // ---- "current overrides" bar (chips) ----------------------------------------------------
 
-    function makeChip(typeClass, iconClass, label, removeTitle, onRemove) {
-        var $chip = window.$('<span class="dashboardSegmentChip ' + typeClass + '"></span>');
-        $chip.append(window.$('<span class="dashboardSegmentChipIcon ' + iconClass + '"></span>'));
-        $chip.append(window.$('<span class="dashboardSegmentChipLabel"></span>').text(label));
+    var chipSeq = 0;
+    function makeChip(typeClass, iconClass, label, removeTitle, onRemove, tooltip) {
+        var $chip = window.$('<span class="dashboardSegmentChip"></span>').addClass(typeClass);
+        // the chip's full text (name, or a time range with its dates) for screen readers, read with its x
+        var descId = 'fwds-chip-' + (++chipSeq);
+        $chip.append(window.$('<span class="fwds-srOnly"></span>').attr('id', descId).text(tooltip || label));
+        $chip.append(window.$('<span class="dashboardSegmentChipIcon" aria-hidden="true"></span>').addClass(iconClass));
+        // the full name as tooltip (a long one is cut with an ellipsis), for a time range also its dates
+        $chip.append(window.$('<span class="dashboardSegmentChipLabel"></span>').text(label).attr('title', tooltip || label));
         if (onRemove) { // read-only (subscribed) dashboards show the chip without a remove control
-            var $x = window.$('<a href="javascript:;" class="dashboardSegmentRemove" title="' + removeTitle + '">×</a>');
-            $x.on('click', function (e) { e.stopPropagation(); onRemove(); });
+            var $x = window.$('<a href="javascript:;" role="button" class="dashboardSegmentRemove"></a>')
+                .attr('title', removeTitle)
+                .attr('aria-label', removeTitle)
+                .attr('aria-describedby', descId)
+                .append(window.$('<span aria-hidden="true">×</span>'));
+            // removed by keyboard: refreshBar() rebuilds the bar, so the caller puts the focus back into the widget
+            $x.on('click', function (e) { e.stopPropagation(); onRemove(document.activeElement === $x[0]); });
+            $x.on('keydown', function (e) { if (e.key === ' ') { e.preventDefault(); $x.trigger('click'); } });
             $chip.append($x);
         }
         return $chip;
+    }
+
+    // After a chip was removed by keyboard: the x of the chip of that kind if there is one now (a segment chip's x leads
+    // to the "No segment (all data)" chip), else the widget's button for it.
+    function focusAfterRemove($el, chipClass, buttonClass) {
+        var $target = $el.find('.dashboardSegmentChip.' + chipClass + ' .dashboardSegmentRemove').first();
+        if (!$target.length) { $target = $el.find('.' + buttonClass).first(); }
+        if ($target.length && typeof $target[0].focus === 'function') { $target[0].focus(); }
     }
 
     function refreshBar($el) {
         var $bar = $el.find('.dashboardSegmentBar').first();
         if (!$bar.length) { return; }
         var instanceId = $el.attr('data-ds-segid') || '';
+        // a chip's x with the keyboard focus (the widget reloads and rebuilds its bar after a removal): the x of the
+        // chip of that kind gets it back after the rebuild
+        var focusedKind = null;
+        var focused = document.activeElement;
+        if (focused && $bar[0] && typeof $bar[0].contains === 'function' && $bar[0].contains(focused)) {
+            focusedKind = window.$(focused).closest('.dashboardSegmentChip').hasClass('is-period') ? 'is-period' : 'is-segment';
+        }
         $bar.empty();
         var any = false;
 
-        // segment chip — only for an actual segment (not __none__ / inherit)
+        // segment chip: the widget's own segment, or its own "No segment (all data)"; none while it inherits
         var segVal = FeinwerkDashboardSegment.currentWidgetValue(instanceId);
-        if (segVal !== '' && segVal !== NONE) {
+        if (segVal === NONE) {
+            any = true;
+            $bar.append(makeChip(
+                'is-segment is-all', 'icon-segment',
+                _pk_translate('FeinwerkDashboardSegment_NoSegment'),
+                _pk_translate('FeinwerkDashboardSegment_InheritDefault'),
+                isReadOnlyDashboard() ? null : function (byKeyboard) {
+                    FeinwerkDashboardSegment.saveWidget(instanceId, '').then(function (saved) {
+                        if (!saved) { return; }
+                        refreshBar($el);
+                        if (byKeyboard) { focusAfterRemove($el, 'is-segment', 'dashboardSegmentButton'); }
+                        reloadWidgetEl($el);
+                    });
+                }
+            ));
+        } else if (segVal !== '') {
             any = true;
             $bar.append(makeChip(
                 'is-segment', 'icon-segment',
                 FeinwerkDashboardSegment.segmentName(segVal),
                 _pk_translate('FeinwerkDashboardSegment_RemoveSegment'),
-                isReadOnlyDashboard() ? null : function () {
-                    FeinwerkDashboardSegment.saveWidget(instanceId, NONE).then(function (saved) { if (saved) { refreshBar($el); reloadWidgetEl($el); } });
+                isReadOnlyDashboard() ? null : function (byKeyboard) {
+                    // back to the dashboard default, like the x of a time range (Peter, 2026-11-24, P1 A)
+                    FeinwerkDashboardSegment.saveWidget(instanceId, '').then(function (saved) {
+                        if (!saved) { return; }
+                        refreshBar($el);
+                        if (byKeyboard) { focusAfterRemove($el, 'is-segment', 'dashboardSegmentButton'); }
+                        reloadWidgetEl($el);
+                    });
                 }
             ));
         }
@@ -672,17 +1113,29 @@
         if (perKey) {
             var preset = presetByKey(perKey);
             any = true;
+            var perLabel = preset ? _pk_translate(preset.label) : perKey;
+            var perDates = preset ? presetRangeText(preset) : '';
             $bar.append(makeChip(
                 'is-period', 'icon-calendar',
-                preset ? _pk_translate(preset.label) : perKey,
+                perLabel,
                 _pk_translate('FeinwerkDashboardSegment_RemovePeriod'),
-                isReadOnlyDashboard() ? null : function () {
-                    FeinwerkDashboardSegment.saveWidgetPeriod(instanceId, '').then(function (saved) { if (saved) { refreshBar($el); reloadWidgetEl($el); } });
-                }
+                isReadOnlyDashboard() ? null : function (byKeyboard) {
+                    FeinwerkDashboardSegment.saveWidgetPeriod(instanceId, '').then(function (saved) {
+                        if (!saved) { return; }
+                        refreshBar($el);
+                        if (byKeyboard) { focusAfterRemove($el, 'is-period', 'dashboardPeriodButton'); }
+                        reloadWidgetEl($el);
+                    });
+                },
+                perDates ? perLabel + '\n' + perDates : perLabel
             ));
         }
 
         if (any) { $bar.show(); } else { $bar.hide(); }
+        if (focusedKind) {
+            var $x = $bar.find('.dashboardSegmentChip.' + focusedKind + ' .dashboardSegmentRemove').first();
+            if ($x.length && typeof $x[0].focus === 'function') { $x[0].focus(); }
+        }
     }
 
     // ---- widget decoration ------------------------------------------------------------------
@@ -715,7 +1168,31 @@
         var $el = widget.element;
         if ($el.find('.sparklineImg, .visitsLiveFooter, .live-widget-loading').length) { return true; }
         if ($el.find('[vue-entry^="Live."]').length) { return true; }
-        return false;
+        // Everything else needs a report the server rendered from this widget's own request (Matomo's report table,
+        // `.dataTable[data-report]`, in the content when widget:create fires). Widgets of other plugins that load their
+        // data in the browser (Feinwerk Live Dashboard, for example) have none and follow the dashboard's segment.
+        return !$el.find('.dataTable[data-report]').length;
+    }
+
+    // The buttons and the bar for a widget: a supported report, or any widget that already has an override of its own,
+    // so that override stays visible and can be removed (for example when its request failed and showed no report).
+    FeinwerkDashboardSegment.offersOverrides = function (widget) {
+        var entry = this.entryFor(instanceIdOf(widget));
+        if (entry && (entry.segment || entry.period)) { return true; }
+        return !isUnsupportedWidget(widget);
+    };
+
+    // A button of the widget header: a real button (keyboard, screen readers) with its name, like Matomo's own controls
+    // next to it, and the state of the menu it opens.
+    function widgetButton(cls, iconClass, labelKey) {
+        var label = _pk_translate(labelKey);
+        return window.$('<button type="button" class="button"></button>')
+            .addClass(cls)
+            .attr('title', label)
+            .attr('aria-label', label)
+            .attr('aria-haspopup', 'listbox')
+            .attr('aria-expanded', 'false')
+            .append(window.$('<span aria-hidden="true"></span>').addClass(iconClass));
     }
 
     // Insert the per-widget segment/period buttons into the widget header.
@@ -740,8 +1217,7 @@
             return;
         }
 
-        var $segBtn = window.$('<div class="button dashboardSegmentButton" title="' +
-            _pk_translate('FeinwerkDashboardSegment_PickSegment') + '"><span class="icon-segment"></span></div>');
+        var $segBtn = widgetButton('dashboardSegmentButton', 'icon-segment', 'FeinwerkDashboardSegment_PickSegment');
         $segBtn.on('click', function (e) {
             e.stopPropagation();
             openSegmentMenu($segBtn, FeinwerkDashboardSegment.currentWidgetValue(instanceIdOf(widget)), function (value) {
@@ -749,11 +1225,13 @@
                 FeinwerkDashboardSegment.saveWidget(id, value).then(function (saved) {
                     if (saved) { refreshBar(widget.element); reloadWidgetEl(widget.element); }
                 });
+            }, null, null, {
+                newFor: function () { return ensureInstanceId(widget); },
+                copy: function () { openCopyMenu($segBtn, widget); }
             });
         });
 
-        var $perBtn = window.$('<div class="button dashboardPeriodButton" title="' +
-            _pk_translate('FeinwerkDashboardSegment_PickPeriod') + '"><span class="icon-calendar"></span></div>');
+        var $perBtn = widgetButton('dashboardPeriodButton', 'icon-calendar', 'FeinwerkDashboardSegment_PickPeriod');
         $perBtn.on('click', function (e) {
             e.stopPropagation();
             openPeriodMenu($perBtn, FeinwerkDashboardSegment.currentPeriodKey(instanceIdOf(widget)), function (key) {
@@ -764,18 +1242,20 @@
             });
         });
 
+        // The two filters come first, Matomo's window controls (refresh, minimise, maximise, close) after them, so close
+        // stays last (Peter, 2026-11-24, D3). Inside the hover-revealed cluster of Matomo 5.14 and 6; the legacy toolbar of
+        // 5.13 and older floats its buttons to the right, so there the last ones in the markup show first.
         if ($controls.length) {
-            // Append after the native controls, inside their hover-revealed cluster.
-            $controls.append($segBtn).append($perBtn);
+            $controls.prepend($perBtn).prepend($segBtn);
         } else {
-            $legacy.prepend($perBtn).prepend($segBtn);  // legacy toolbar (segment first)
+            $legacy.append($perBtn).append($segBtn);
         }
     }
 
     FeinwerkDashboardSegment.decorateWidget = function (widget) {
         var $top = widget.element.find('.widgetTop').first();
         if (!$top.length) { return; }
-        if (isUnsupportedWidget(widget)) { return; }
+        if (!FeinwerkDashboardSegment.offersOverrides(widget)) { return; }
 
         widget.element.attr('data-ds-segid', instanceIdOf(widget));
 
@@ -795,7 +1275,7 @@
         // they've had time to render and strip our decoration if it turns out unsupported.
         var $w = widget.element;
         window.setTimeout(function () {
-            if (isUnsupportedWidget(widget)) {
+            if (!FeinwerkDashboardSegment.offersOverrides(widget)) {
                 $w.find('.dashboardSegmentButton, .dashboardPeriodButton, .dashboardSegmentBar').remove();
             }
         }, 400);
@@ -810,6 +1290,15 @@
         return this.segmentName(a.segment);
     };
 
+    // ---- room in Matomo's top bar ------------------------------------------------------------
+    // Peter, 2026-11-24 (P4 B, the same in Feinwerk Dashboard Sharing; B2): the label "Dashboard segment:" gives way when
+    // the bar would need another row: first to a short "Default:", then (after Dashboard Sharing's labels) entirely, with
+    // icon and name left; the full label stays for screen readers (visually hidden) and in the tooltip.
+    // javascripts/fwtopbar.js (shared with Dashboard Sharing) decides for both plugins together.
+    function scheduleFit() {
+        if (window.fwTopBar && typeof window.fwTopBar.schedule === 'function') { window.fwTopBar.schedule(); }
+    }
+
     // The dashboard default segment as a button in Matomo's bar at the top (website, date, segment, Manage Dashboard),
     // in Matomo's own top-control markup: "[icon] Dashboard segment: <name>". The slot comes from
     // Template.nextToCalendar; where the bar is missing the button goes above the widgets.
@@ -822,24 +1311,72 @@
 
         var $ctrl = window.$('<div id="dashboardSegmentDefault" class="dashboardSegmentDefault piwikSelector borderedControl piwikTopControl"></div>');
         var $value = window.$('<a href="javascript:;" role="button" class="title dashboardSegmentDefaultValue"></a>')
-            .attr('title', _pk_translate('FeinwerkDashboardSegment_DashboardSegmentTooltip'));
+            .attr('aria-haspopup', 'listbox')
+            .attr('aria-expanded', 'false');
         $value.append(window.$('<span class="icon icon-segment icon-fixed dashboardSegmentDefaultIcon" aria-hidden="true"></span>'));
         // label and name in one text part, so they sit a normal space apart (the bar spaces only the icon)
         var $name = window.$('<span class="dashboardSegmentDefaultName"></span>');
+        // the colon is in the translations (French puts a space before it); the short label ("Default:") shows where the
+        // full one would cost the top bar a row (B2); screen readers read the full one, and the short one while it shows,
+        // so a voice command with the visible word reaches the button
+        var $label = window.$('<span class="dashboardSegmentDefaultLabel"></span>')
+            .append(window.$('<span class="dsLabelFull"></span>').text(_pk_translate('FeinwerkDashboardSegment_DashboardSegmentButton') + ' '))
+            .append(window.$('<span class="dsLabelShort"></span>').text(_pk_translate('FeinwerkDashboardSegment_DashboardSegmentButtonShort') + ' '));
         $value.append(window.$('<span class="dashboardSegmentDefaultText"></span>')
-            .append(window.$('<span class="dashboardSegmentDefaultLabel"></span>')
-                .text(_pk_translate('FeinwerkDashboardSegment_DashboardSegmentButton') + ' '))  // the colon is in the translation (French puts a space before it)
+            .append($label)
             .append($name));
+        // what the button is for, read by screen readers after its name (its tooltip repeats the name for the mouse)
+        $value.attr('aria-describedby', 'fwds-default-description');
+        $ctrl.append(window.$('<span id="fwds-default-description" class="fwds-srOnly"></span>')
+            .text(_pk_translate('FeinwerkDashboardSegment_DashboardSegmentTooltip')));
         $ctrl.append($value);
         var $slot = window.$('#fwds-topcontrol-slot');
         if ($slot.length) { $slot.append($ctrl); } else { $area.before($ctrl.addClass('dashboardSegmentDefault--inline')); }
+        // the icon where Matomo's own controls next to it have theirs: after the text on older Matomo 5 versions. Their
+        // date selector's icon is measured where it shows (Matomo 6 floats it too, inside a flex row, where it stays first).
+        try {
+            var ref = document.querySelector('.periodSelector .title .icon');
+            var refTitle = ref && ref.parentElement;
+            if (ref && refTitle && ref.getBoundingClientRect) {
+                var iconBox = ref.getBoundingClientRect();
+                var titleBox = refTitle.getBoundingClientRect();
+                if (iconBox.width > 0 && iconBox.left > titleBox.left + titleBox.width / 2) {
+                    $ctrl.addClass('dashboardSegmentDefault--iconAfter');
+                }
+            }
+        } catch (e) {
+            // the icon stays first
+        }
+        if ($slot.length && $ctrl[0] && window.fwTopBar && typeof window.fwTopBar.register === 'function') {
+            // first step: the short label (order 10); Feinwerk Dashboard Sharing's labels (20); last: no label (30)
+            window.fwTopBar.register({
+                el: $ctrl[0],
+                order: 10,
+                set: function (on) { $ctrl.toggleClass('dashboardSegmentDefault--short', !!on); }
+            });
+            if ($label[0]) {
+                window.fwTopBar.register({
+                    el: $label[0],
+                    order: 30,
+                    set: function (on) { $ctrl.toggleClass('dashboardSegmentDefault--compact', !!on); }
+                });
+            }
+        }
 
         function render() {
             var label = self.defaultLabel();
             $name.text(label);
+            // the full name first (a long one is cut with an ellipsis), then what the button is for
+            $value.attr('title', _pk_translate('FeinwerkDashboardSegment_DashboardSegmentButton') + ' ' + label + '\n'
+                + _pk_translate('FeinwerkDashboardSegment_DashboardSegmentTooltip'));
             $ctrl.toggleClass('dashboardSegmentDefault--set', !!self.settings.defaultAction);
+            scheduleFit();
         }
 
+        // a link with the role of a button also opens with the space bar
+        $value.on('keydown', function (e) {
+            if (e.key === ' ') { e.preventDefault(); $value.trigger('click'); }
+        });
         $value.on('click', function (e) {
             e.preventDefault();
             e.stopPropagation();
@@ -851,7 +1388,9 @@
                     // ourselves when that did not already navigate (which reloads everything).
                     if (!self.syncGlobalSegmentForDashboard()) { self.reloadAllWidgets(); }
                 });
-            }, 'FeinwerkDashboardSegment_NoDashboardDefault');
+            }, 'FeinwerkDashboardSegment_NoDashboardDefault', _pk_translate('FeinwerkDashboardSegment_DashboardDefaultSegment'), {
+                newFor: function () { return 'default'; }
+            });
         });
 
         self.loadSegments(function () { render(); });
@@ -880,16 +1419,19 @@
             }
             return;
         }
-        FeinwerkDashboardSegment.loadSegments(function () {
-            FeinwerkDashboardSegment.injectDefaultControl();
-            window.$('[widgetId]').each(function () { refreshBar(window.$(this)); });
+        // a segment just made with "New segment" goes to its widget or the default first (B1)
+        FeinwerkDashboardSegment.applyNewSegmentNote(function () {
+            FeinwerkDashboardSegment.loadSegments(function () {
+                FeinwerkDashboardSegment.injectDefaultControl();
+                window.$('[widgetId]').each(function () { refreshBar(window.$(this)); });
+            });
+            // Drive Matomo's global segment from the dashboard default so reactive widgets honour it.
+            // If that navigates, it reloads every widget itself; only fall back to our per-widget reload
+            // when we did NOT navigate.
+            if (!FeinwerkDashboardSegment.syncGlobalSegmentForDashboard()) {
+                FeinwerkDashboardSegment.applyToRendered();
+            }
         });
-        // Drive Matomo's global segment from the dashboard default so reactive widgets honour it.
-        // If that navigates, it reloads every widget itself; only fall back to our per-widget reload
-        // when we did NOT navigate.
-        if (!FeinwerkDashboardSegment.syncGlobalSegmentForDashboard()) {
-            FeinwerkDashboardSegment.applyToRendered();
-        }
     }
 
     // Entry point for (re)entering a dashboard.

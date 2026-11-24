@@ -12,7 +12,7 @@ Today, yesterday, the last 7 days, the last 30 days, this week, this month and t
 
 __Which widgets support a segment or time range of their own?__
 
-Report widgets that show a table, for example Channel Types, Pages, Entry pages, Countries, Device type or Campaigns. Graphs and charts, sparklines, the overview widgets (Visits Overview, Goals and Ecommerce overview), the Real-time widgets and the Visitor Map load their data themselves in the browser. They show no segment or time range buttons and follow the segment of the whole dashboard.
+Report widgets that show a table, for example Channel Types, Pages, Entry pages, Countries, Device type or Campaigns. Graphs and charts, sparklines, the overview widgets (Visits Overview, Goals and Ecommerce overview), the Real-time widgets, the Visitor Map and widgets of other plugins that load their data in the browser (such as those of Feinwerk Live Dashboard) show no segment or time range buttons and follow the segment of the whole dashboard.
 
 __How do I filter graphs and the Real-time widget then?__
 

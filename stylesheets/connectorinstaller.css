@@ -1,0 +1,27 @@
+/* Feinwerk kit: the connector installer page (templates/connectorInstaller.twig). Matomo's card and button classes do
+   the rest; theme variables with light fallbacks (also for Matomo below 5.12). */
+.fwci .fwci__steps {
+    list-style: decimal;
+    margin: 0 0 12px;
+    padding-left: 1.5em;
+}
+
+.fwci .fwci__steps li {
+    list-style: decimal;
+    margin-bottom: 4px;
+}
+
+/* Matomo's muted help text */
+.fwci .fwci__note {
+    color: var(--theme-color-text-lighter, #666);
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+/* after the click: a progress label, no second run */
+.fwci .fwci__run--busy,
+.fwci .fwci__run--busy:hover {
+    cursor: progress;
+    opacity: 0.75;
+    pointer-events: none;
+}
