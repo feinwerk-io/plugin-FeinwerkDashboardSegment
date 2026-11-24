@@ -1,5 +1,48 @@
 # Changelog
 
+## 6.1.0
+
+- Fixed: a widget set to "No segment (all data)" showed the segment of the dashboard (its default segment, or the one
+  chosen at the top) instead of all data. It now shows all data, also after sorting or paging its table.
+- A widget set to "No segment (all data)" says so in the bar under its title, in a plain outline, so filtered and
+  unfiltered widgets are told apart at a glance.
+- "×" on a segment in the bar under a widget's title now goes straight back to the dashboard default, as it does for a
+  time range. "No segment (all data)" is chosen in the menu.
+- The time range in the bar under a widget's title shows its dates as a tooltip; "Last 30 days" and the other choices
+  count from today.
+- In a widget's header the segment and time range buttons come first, Matomo's own buttons after them, with close last.
+- The "Dashboard segment" button in the top bar shows only its icon and the segment name when its label would otherwise
+  push the bar into a second row; the label stays in the tooltip. Together with Feinwerk Dashboard Sharing, both
+  plugins decide this together.
+- The segment and time range menus also work in a maximised widget, and "New segment" is reached with the arrow keys.
+- A segment made with "New segment" in a widget's menu goes straight to that widget (from the "Dashboard segment" menu:
+  to the dashboard default), and a short note confirms it; the segment at the top stays as it was.
+- New in a widget's segment menu: "Add a copy with another segment". The copy appears right below the original with the
+  segment you pick (and the original's time range), to compare audiences side by side. It also works from a maximised
+  widget.
+- Where room in the top bar is short, the "Dashboard segment" button first says "Default:" before it shows only the
+  name, and it uses the short label on phones.
+- The segment menu says so when the website has no saved segments yet, and the segment search when no segment matches; "×" in the bar under a widget's title is easier to hit; the bar
+  lines up with the widget's title; the menus say "Use dashboard default" and "Use dashboard time range"; the plugin
+  list shows a description that says what the plugin does.
+- API: every method describes what it does, each parameter with its allowed values and what it returns, and the README
+  has an "API" section with one example call per method.
+- The segment and time range buttons appear only on widgets that can use them: Matomo's report tables. Widgets of other
+  plugins that load their data in the browser, such as those of Feinwerk Live Dashboard, no longer show them.
+- Keyboard and screen readers: the segment and time range buttons in a widget's header are reached with the Tab key
+  like Matomo's own buttons next to them and are read out by name. All three menus (a widget's segment and time range,
+  the dashboard segment at the top) work with the arrow keys, Enter and Escape and give the focus back to their button;
+  the search field has a label, and Enter picks the only match. Only one menu is open at a time. Screen readers also read
+  what a segment or time range under a widget's title stands for, with its dates.
+- On older Matomo 5 versions the "Dashboard segment" button puts its icon after the text, like the controls next to it.
+- The menus stay inside the window, also for widgets in the right column and on phones.
+- Long segment names that are cut show their full name as a tooltip, in the bar under a widget's title and on the
+  "Dashboard segment" button, which now also fits on phones with a long name.
+- Feinwerk Connector installer: the button shows that Matomo is working and takes no second click. An older connector
+  that does not fit this Matomo is updated instead of activated. If Matomo asks for your password first, the page asks
+  for one more click instead of showing an error. The page tells the browser its language, and the "Feinwerk Plugins"
+  menu shows its icon.
+
 ## 6.0.0
 
 The first stable version for Matomo 6. Compared with the last beta for Matomo 6 before the new version numbers

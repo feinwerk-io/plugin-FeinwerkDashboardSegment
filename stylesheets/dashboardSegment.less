@@ -12,9 +12,37 @@
     }
 }
 
+// The widget header buttons are real buttons: no browser or Matomo button look (Matomo colours every focused button
+// turquoise), a focus ring for the keyboard as on Matomo's own controls next to them.
 .dashboardSegmentButton,
 .dashboardPeriodButton {
     cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    border: 0;
+    border-radius: 4px;
+    padding: 0;
+    color: inherit;
+    font: inherit;
+
+    &:focus { outline: none; background: transparent; }
+    &:focus-visible { outline: 2px solid ~"var(--theme-color-focus-ring, #0969da)"; outline-offset: 2px; }
+}
+
+// Matomo 5.13 and older hide the header toolbar with display: none until the pointer is over the header, so a
+// keyboard could never reach a button in it. On the dashboard it stays rendered but invisible and not clickable
+// instead, and shows on hover (as before) or while one of its buttons has the keyboard focus. Matomo 5.14 and 6 have
+// their own header (`.reportHeader__widgetControls`, no `.buttons`), a maximised widget is not in #dashboardWidgetsArea.
+#dashboardWidgetsArea .widget .widgetTop .buttons {
+    display: block;
+    opacity: 0;
+    pointer-events: none;
+}
+#dashboardWidgetsArea .widget .widgetTop:hover .buttons,
+#dashboardWidgetsArea .widget .widgetTop:focus-within .buttons {
+    opacity: 1;
+    pointer-events: auto;
 }
 
 // Matomo 5.14+ renders the widget header as a Vue ReportHeader. Our buttons live INSIDE its native
@@ -30,14 +58,17 @@
         justify-content: center;
         width: 20px;
         height: 20px;
-        margin: 0 0 0 8px;
+        margin: 0 8px 0 0;
         padding: 0;
         line-height: 0;
         cursor: pointer;
         color: ~"var(--theme-color-text-lighter, #646464)";
 
         span { font-size: 16px; line-height: 1; }
-        &:hover { color: ~"var(--theme-color-text, #2f3b42)"; }
+        // a little more room before Matomo's window controls: the two filters read as a group
+        &.dashboardPeriodButton { margin-right: 14px; }
+        &:hover,
+        &:focus-visible { color: ~"var(--theme-color-text, #2f3b42)"; }
     }
 }
 
@@ -48,6 +79,12 @@
     align-items: center;
     gap: 6px;
     margin: 4px 8px 12px;
+}
+
+// in line with the widget's title and table (20 px in the header of Matomo 5.14 and 6)
+.widgetTop:has(.reportHeader__widgetControls) + .dashboardSegmentBar {
+    margin-left: 20px;
+    margin-right: 20px;
 }
 
 .dashboardSegmentChip {
@@ -88,6 +125,19 @@
     });
 }
 
+// "No segment (all data)": no filter, so no colour (Peter, 2026-11-24, D2): an outline only
+.dashboardSegmentChip.is-segment.is-all {
+    color: ~"var(--theme-color-text-lighter, #646464)";
+    background: transparent;
+    border-color: ~"var(--theme-color-border, #c5c5c5)";
+    .fwdsInDarkMode({
+        color: ~"var(--theme-color-text-lighter, #b0b0b0)";
+        background: transparent;
+        border-color: ~"var(--theme-color-border, #5a5a5a)";
+    });
+    .dashboardSegmentChipLabel { font-weight: normal; }
+}
+
 .dashboardSegmentChip.is-period {
     color: #74500e;
     background: #f7e1a0;
@@ -100,6 +150,13 @@
 }
 
 .dashboardSegmentRemove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    min-height: 24px;
+    margin: -3px -6px -3px -4px;
+    border-radius: 3px;
     color: ~"var(--theme-color-text-lighter, #8a98a8)";
     font-size: 15px;
     line-height: 1;
@@ -108,14 +165,23 @@
     cursor: pointer;
 
     &:hover { color: #d9534f; }
+    .fwdsInDarkMode({ &:hover { color: #ff8f8a; } });
+    &:focus { outline: none; }
+    &:focus-visible { outline: 2px solid ~"var(--theme-color-focus-ring, #0969da)"; outline-offset: 1px; }
 }
 
+// Menus open under their button and stay inside the window (placed by positionMenu()); on a phone at most as wide as
+// the window minus 8 px on each side.
 .dashboardSegmentMenu {
-    background: ~"var(--theme-color-background-base, #fff)";
+    position: absolute;
+    z-index: 1002; // above Matomo's dialog (a maximised widget, 1001); inside it, above its content
+    box-sizing: border-box;
+    background: ~"var(--theme-color-background-contrast, #fff)"; // the surface of Matomo's selector dropdowns
     color: ~"var(--theme-color-text, #212121)";
     border: 1px solid ~"var(--theme-color-border, #c5c5c5)";
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-    min-width: 220px;
+    min-width: ~"min(220px, calc(100vw - 16px))";
+    max-width: ~"calc(100vw - 16px)";
     max-height: 320px;
     overflow-y: auto;
 }
@@ -126,8 +192,8 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    min-width: 260px;
-    max-width: 360px;
+    min-width: ~"min(260px, calc(100vw - 16px))";
+    max-width: ~"min(360px, calc(100vw - 16px))";
     max-height: 360px;
 
     .dsMenuSearchWrap {
@@ -142,29 +208,67 @@
         font-size: 13px;
         border: 1px solid ~"var(--theme-color-border, #ccc)";
         border-radius: 3px;
-        background: ~"var(--theme-color-background-base, #fff)";
+        background: ~"var(--theme-color-background-contrast, #fff)";
         color: ~"var(--theme-color-text, #212121)";
 
         &:focus { border-color: ~"var(--theme-color-link, #1d72b8)"; outline: none; }
     }
     .dsMenuList { flex: 1 1 auto; overflow-y: auto; }
-    .dsNewSegment {
+    .dsMenuNote {
+        flex: none;
+        padding: 6px 12px 8px;
+        font-size: 12px;
+        color: ~"var(--theme-color-text-lighter, #646464)";
+    }
+    .dsMenuNone {
+        flex: none;
+        padding: 8px 12px;
+        font-size: 13px;
+        color: ~"var(--theme-color-text-lighter, #646464)";
+    }
+    .dsNewSegment,
+    .dsAddCopy {
         flex: none;
         display: block;
         padding: 8px 12px;
         border-top: 1px solid ~"var(--theme-color-border, #e0e0e0)";
         font-size: 12px;
 
-        .icon-add { font-size: 11px; }
+        .icon-add,
+        .icon-plus-square { font-size: 11px; }
+    }
+    .dsNewSegment + .dsAddCopy { border-top: 0; padding-top: 2px; }
+    // the copy's menu says what it is for
+    .dsMenuHeading {
+        flex: none;
+        padding: 8px 12px 0;
+        font-size: 12px;
+        font-weight: bold;
+        color: ~"var(--theme-color-text-lighter, #646464)";
     }
 }
 
+// An option: a fixed column for the check mark of the current one, so all names start at the same place. Hover and
+// keyboard focus share one highlight that shows in light and dark mode.
 .dashboardSegmentItem {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
     padding: 8px 12px;
     cursor: pointer;
 
-    &:hover { background: ~"var(--theme-color-background-tinyContrast, #f2f2f2)"; }
+    .dsCheck { flex: none; width: 1em; visibility: hidden; }
+    .dsItemLabel { min-width: 0; overflow-wrap: anywhere; }
+
+    &:hover,
+    &:focus {
+        outline: none;
+        background: rgba(128, 128, 128, 0.18); // browsers without color-mix()
+        background: ~"color-mix(in srgb, var(--theme-color-text, #212121) 9%, transparent)";
+    }
+    &:focus-visible { box-shadow: inset 0 0 0 2px ~"var(--theme-color-focus-ring, #0969da)"; }
     &.active { font-weight: bold; }
+    &.active .dsCheck { visibility: visible; }
 }
 
 // The slot in Matomo's top bar takes no room of its own: the button inside it lines up with the other top controls.
@@ -175,10 +279,17 @@
 // The dashboard default segment button: Matomo's own top-control classes (piwikSelector, borderedControl,
 // piwikTopControl, a.title) give it the look of the controls next to it; this only arranges its parts.
 #dashboardSegmentDefault {
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+
     .dashboardSegmentDefaultValue {
         display: flex;
         align-items: center;
         gap: 8px;
+        min-width: 0;
+        max-width: 100%;
+        box-sizing: border-box;
         text-decoration: none;
     }
 
@@ -186,18 +297,78 @@
         float: none;
     }
 
+    // older Matomo 5 versions put the icon after the text in their own top controls
+    &.dashboardSegmentDefault--iconAfter .dashboardSegmentDefaultIcon {
+        order: 2;
+    }
+
+    // the label keeps its width, the name takes what is left (at most 16em) and ends with an ellipsis when cut; the
+    // button's tooltip shows the full name
     .dashboardSegmentDefaultText {
+        display: flex;
+        align-items: baseline;
         min-width: 0;
         white-space: nowrap;
     }
 
+    .dashboardSegmentDefaultLabel {
+        flex: none;
+        white-space: pre;
+    }
+
     .dashboardSegmentDefaultName {
-        display: inline-block;
+        flex: 0 1 auto;
+        min-width: 0;
         max-width: 16em;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        vertical-align: bottom;
+    }
+
+    // B2: the short label ("Default:") stands in for the full one where the full one would cost the top bar a row, and on
+    // phones; screen readers read the full one. Without a default the button says "No default" on its own then.
+    .dsLabelShort { display: none; }
+    &.dashboardSegmentDefault--short .dsLabelFull {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+    }
+    &.dashboardSegmentDefault--short .dsLabelShort { display: inline; white-space: pre; }
+    &.dashboardSegmentDefault--short:not(.dashboardSegmentDefault--set) .dsLabelShort { display: none; }
+    @media (max-width: 600px) {
+        .dsLabelFull {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            margin: -1px;
+            padding: 0;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+        .dsLabelShort { display: inline; white-space: pre; }
+        &:not(.dashboardSegmentDefault--set) .dsLabelShort { display: none; }
+    }
+
+    // P4 B: where even the short label would cost the top bar a row, only icon and name show; screen readers still read
+    // the full label
+    &.dashboardSegmentDefault--compact .dashboardSegmentDefaultLabel {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
     }
 
     &.dashboardSegmentDefault--set .dashboardSegmentDefaultName {
@@ -210,9 +381,31 @@
     }
 }
 
-// Link-style anchor used by the segment menu ("new segment").
+// Link-style anchors under the segment menu ("New segment", "Add a copy ..."): a fixed icon column, the underline only
+// under the words.
 .dsLink {
     color: ~"var(--theme-color-link, #1d72b8)";
     cursor: pointer;
-    text-decoration: underline dotted;
+    text-decoration: none;
+
+    [class^="icon-"] {
+        display: inline-block;
+        width: 1.2em;
+        margin-right: 4px;
+        text-align: center;
+    }
+    .dsLinkText { text-decoration: underline dotted; }
+}
+
+// Read by screen readers, not shown (the description of the dashboard segment button).
+.fwds-srOnly {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }

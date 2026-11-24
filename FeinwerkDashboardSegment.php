@@ -98,12 +98,15 @@ class FeinwerkDashboardSegment extends Plugin
 
     public function getJsFiles(&$jsFiles)
     {
+        $jsFiles[] = 'plugins/FeinwerkDashboardSegment/javascripts/fwtopbar.js';
         $jsFiles[] = 'plugins/FeinwerkDashboardSegment/javascripts/dashboardSegment.js';
+        $jsFiles[] = 'plugins/FeinwerkDashboardSegment/javascripts/connectorinstaller.js';
     }
 
     public function getStylesheetFiles(&$stylesheets)
     {
         $stylesheets[] = 'plugins/FeinwerkDashboardSegment/stylesheets/dashboardSegment.less';
+        $stylesheets[] = 'plugins/FeinwerkDashboardSegment/stylesheets/connectorinstaller.css';
     }
 
     public function getClientSideTranslationKeys(&$keys)
@@ -121,6 +124,15 @@ class FeinwerkDashboardSegment extends Plugin
         $keys[] = 'FeinwerkDashboardSegment_PickPeriod';
         $keys[] = 'FeinwerkDashboardSegment_InheritPeriod';
         $keys[] = 'FeinwerkDashboardSegment_RemovePeriod';
+        $keys[] = 'FeinwerkDashboardSegment_NoMatchingSegment';
+        $keys[] = 'FeinwerkDashboardSegment_NoSavedSegments';
+        $keys[] = 'FeinwerkDashboardSegment_DashboardSegmentButtonShort';
+        $keys[] = 'FeinwerkDashboardSegment_AddCopyWithSegment';
+        $keys[] = 'FeinwerkDashboardSegment_SegmentForCopy';
+        $keys[] = 'FeinwerkDashboardSegment_NewSegmentForWidget';
+        $keys[] = 'FeinwerkDashboardSegment_NewSegmentIsDefault';
+        $keys[] = 'FeinwerkDashboardSegment_CopyAdded';
+        $keys[] = 'General_DateRangeFromTo';
         $keys[] = 'FeinwerkDashboardSegment_PeriodToday';
         $keys[] = 'FeinwerkDashboardSegment_PeriodYesterday';
         $keys[] = 'FeinwerkDashboardSegment_PeriodLast7';
